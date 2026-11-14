@@ -92,19 +92,6 @@ services:
       retries: 30
       start_period: 10s
 
-  switchboard:
-    build: .
-    ports:
-      - "18000:8000"
-    environment:
-      HYDRADB_URL: http://hydradb:8443
-      HYDRADB_ADMIN_URL: http://hydradb:9090
-      HYDRADB_TOKEN: ${HYDRADB_TOKEN:-local-development-token-32-bytes}
-      HYDRADB_GRAPH: default
-    depends_on:
-      hydradb:
-        condition: service_healthy
-
 volumes:
   minio-data:
   hydradb-cache:

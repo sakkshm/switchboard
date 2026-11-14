@@ -16,7 +16,7 @@ Repo: `sakkshm/switchboard`.
 
 | Gate | Hour | Passes when | If it fails |
 |---|---|---|---|
-| **G0 Backend** | done | `docker compose up -d` is healthy and `scripts/probe.py` prints 6/6 PASS | Already passed on Nov 14 |
+| **G0 Backend** | done | `docker compose up -d --wait` is healthy and `http://127.0.0.1:19090/readyz` returns 200 | Already passed on Nov 14 |
 | **G1 Gateway** | H+3 | One fixture upstream added by CLI; `switchboard serve` exposes 2 tools; OpenCode runs a 2-step plan | Fix transport and config before fixtures |
 | **G2 Fixture** | H+5 | 60 tools, four servers, six 4-step tasks; `evals/chain_check.py` prints six chains | No ordering claim. Pivot to the eval-harness idea, today |
 | **G3 Plan** | H+8 | `switchboard index` discovers 60 tools; `switchboard plan` prints 4 ordered tools; validator rejects a bad chain | Drop to 2 families, one chain, still ships |
@@ -38,8 +38,10 @@ Verified on Nov 14:
 - `compose.yaml`: MinIO on 19000/19001, HydraDB on 18443/17687/19090.
   Healthchecks, named volumes, and a busybox init that writes the auth token
   and chowns the cache volume to uid 10001.
-- `.env.example`, `.gitignore`, `requirements.txt`
-- `app/store.py`: HTTP client and typed-cell decoder; `scripts/probe.py`: six
+- `.env.example`, `.gitignore`, `pyproject.toml`
+- `switchboard/hydra.py`: HTTP client and typed-cell decoder. The Phase 0
+  scratch probe that verified the six checks was removed once the gateway
+  exercised the same path end to end.
   checks, PASS/FAIL, non-zero exit on failure
 
 The six checks:
@@ -80,15 +82,15 @@ Files:
   `plan`, `run`, `serve`, `status`
 - `switchboard/gateway.py`: `MCPServer` with async `find` and `run`; stdio by
   default, Streamable HTTP with `--http`; logs to stderr only
-- `switchboard/hydra.py`: move the verified store client and decoder from
-  `app/store.py`
-- `fixtures/echo_server.py`: two tools, `echo_a` and `echo_b`, with the
+- `switchboard/hydra.py`: move the verified client and decoder out of the
+  removed Phase 0 app stub
+- `tests/fixtures/echo_server.py`: two tools, `echo_a` and `echo_b`, with the
   capability header. Throwaway once the real fixture exists
 
 CLI shape:
 
 ```bash
-switchboard add mcp echo -- python -m fixtures.echo_server
+switchboard add mcp echo -- python -m tests.fixtures.echo_server
 switchboard list
 switchboard index
 switchboard plan "echo then play it back"
@@ -115,7 +117,7 @@ Fallbacks:
 
 ### B3. Fixture and chain check, H+3 to H+5
 
-Build `fixtures/`:
+Build `tests/fixtures/`:
 
 - Four stdio MCP servers, 15 tools each, 60 total:
   `issue_server`, `repo_server`, `incident_server`, `account_server`
@@ -230,7 +232,7 @@ Build:
   - `learned`: graph order, weights updated by outcomes
 - 5 rounds on a train split, holdout measured after each round
 - Static results table for the landing page
-- `scripts/baseline_tokens.py`: exact tool-schema character and token count from
+- `evals/baseline_tokens.py`: exact tool-schema character and token count from
   `tools/list`, baseline vs gateway. No model call
 
 Verify:
@@ -281,23 +283,22 @@ switchboard/
     binder.py           $input / $steps
     executor.py         upstream calls, timeouts, caps
     gateway.py          MCPServer, find and run
-  fixtures/
-    common.py           tool table, header parser, result helpers
-    issue_server.py
-    repo_server.py
-    incident_server.py
-    account_server.py
   evals/
     tasks.jsonl
     chain_check.py
     run.py
-    results/
-  scripts/
-    probe.py            backend 6/6
     baseline_tokens.py
+    results/
   tests/
     unit/
     integration/
+    fixtures/
+      common.py         tool table, header parser, result helpers
+      echo_server.py    G1 two-step chain
+      issue_server.py
+      repo_server.py
+      incident_server.py
+      account_server.py
   docs/
   switchboard.example.json
   .env.example
@@ -373,14 +374,13 @@ what is mocked.
 
 ```bash
 cp .env.example .env
-docker compose up -d
+docker compose up -d --wait                # G0
 pip install -e .
-python scripts/probe.py                    # G0, 6/6
 python evals/chain_check.py                # G2
-switchboard add mcp issues -- python -m fixtures.issue_server
-switchboard add mcp repo -- python -m fixtures.repo_server
-switchboard add mcp incident -- python -m fixtures.incident_server
-switchboard add mcp account -- python -m fixtures.account_server
+switchboard add mcp issues -- python -m tests.fixtures.issue_server
+switchboard add mcp repo -- python -m tests.fixtures.repo_server
+switchboard add mcp incident -- python -m tests.fixtures.incident_server
+switchboard add mcp account -- python -m tests.fixtures.account_server
 switchboard index                          # G3
 switchboard plan "comment on the failing test issue in acme/api"
 switchboard serve                          # OpenCode launches this

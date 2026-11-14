@@ -83,10 +83,10 @@ python -m venv .venv
 . .venv/bin/activate
 pip install -e .
 
-switchboard add mcp issues -- python -m fixtures.issue_server
-switchboard add mcp repo -- python -m fixtures.repo_server
-switchboard add mcp incident -- python -m fixtures.incident_server
-switchboard add mcp account -- python -m fixtures.account_server
+switchboard add mcp issues -- python -m tests.fixtures.issue_server
+switchboard add mcp repo -- python -m tests.fixtures.repo_server
+switchboard add mcp incident -- python -m tests.fixtures.incident_server
+switchboard add mcp account -- python -m tests.fixtures.account_server
 
 switchboard list
 switchboard index

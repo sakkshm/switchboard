@@ -76,14 +76,9 @@ docker compose up -d --wait
 docker compose ps
 curl -fsS http://127.0.0.1:19090/readyz
 
-python scripts/probe.py
-# PASS readyz: 200
-# PASS node batch: 4 tools
-# PASS edge batch: 3 edges, rerun stable
-# PASS path query: probe_a -> probe_b -> probe_c -> probe_d
-# PASS plan steps: probe_a -> probe_b -> probe_c -> probe_d
-# PASS edge weight: weight 0.25 hydrated
-# 6/6 PASS
+switchboard status
+# HydraDB http://127.0.0.1:18443  ready=True
+# servers=N tools=60 edges=E plans=P
 ```
 
 Logs:
@@ -163,10 +158,10 @@ yet.
 ### CLI and config
 
 ```bash
-switchboard add mcp issues -- python -m fixtures.issue_server
+switchboard add mcp issues -- python -m tests.fixtures.issue_server
 switchboard list
 switchboard remove mcp issues
-switchboard add mcp issues -- python -m fixtures.issue_server
+switchboard add mcp issues -- python -m tests.fixtures.issue_server
 ```
 
 Pass: the config file contains only the command, `list` prints the server and
@@ -216,22 +211,22 @@ Baseline config, in `evals/harness/baseline/opencode.json`:
     "servers": {
       "issues": {
         "type": "local",
-        "command": ["python", "-m", "fixtures.issue_server"],
+        "command": ["python", "-m", "tests.fixtures.issue_server"],
         "codemode": false
       },
       "repo": {
         "type": "local",
-        "command": ["python", "-m", "fixtures.repo_server"],
+        "command": ["python", "-m", "tests.fixtures.repo_server"],
         "codemode": false
       },
       "incident": {
         "type": "local",
-        "command": ["python", "-m", "fixtures.incident_server"],
+        "command": ["python", "-m", "tests.fixtures.incident_server"],
         "codemode": false
       },
       "account": {
         "type": "local",
-        "command": ["python", "-m", "fixtures.account_server"],
+        "command": ["python", "-m", "tests.fixtures.account_server"],
         "codemode": false
       }
     }

@@ -1,0 +1,131 @@
+"""Graph planner: BM25 goal, one MSpaths call, bindings from produced types."""
+
+import json
+import random
+import time
+
+from . import binder, matcher, validator
+from .hydra import node_id
+
+FIELDS = [
+    "id",
+    "key",
+    "name",
+    "server",
+    "description",
+    "consumes",
+    "produces",
+    "input_schema",
+    "output_schema",
+]
+
+
+class NoPlan(Exception):
+    pass
+
+
+def load_tools(hydra):
+    projection = ", ".join(f"t.{field} AS {field}" for field in FIELDS)
+    rows = hydra.query(f"MATCH (t:Tool) RETURN {projection}")
+    return [dict(zip(FIELDS, row, strict=False)) for row in rows]
+
+
+def _literal(value):
+    return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def fetch_paths(hydra, sources, goal):
+    source_values = ", ".join(_literal(source) for source in sources)
+    query = f"""CALL algo.MSpaths({{
+  sourceLabel: 'Tool', sourceProperty: 'key', sourceValues: [{source_values}],
+  targetLabel: 'Tool', targetProperty: 'key', targetValues: [{_literal(goal)}],
+  relTypes: ['FEEDS'], relDirection: 'outgoing',
+  maxLen: 6, pathCount: 20, pairwise: true, resultLimit: 50
+}}) YIELD path RETURN path"""
+    return [row[0] for row in hydra.query(query)]
+
+
+def score(path, candidates):
+    keys = [node["properties"]["key"] for node in path["nodes"]]
+    weights = [relationship["properties"].get("weight") or 1.0 for relationship in path["relationships"]]
+    coverage = len(set(keys[:-1]) & set(candidates))
+    return coverage * 2 - len(weights) * 0.1 + sum(weights) / len(weights)
+
+
+def save(hydra, plan_id, task, steps):
+    hydra.query(
+        "UNWIND $rows AS row MERGE (p {id: row.id}) "
+        "SET p:Plan, p.key = row.key, p.task = row.task, p.steps = row.steps, "
+        "p.ts = row.ts, p.wins = row.wins",
+        {
+            "rows": [
+                {
+                    "id": plan_id,
+                    "key": str(plan_id),
+                    "task": task,
+                    "steps": json.dumps(steps),
+                    "ts": int(time.time()),
+                    "wins": 0,
+                }
+            ]
+        },
+    )
+    for step in steps:
+        # top-level MERGE with no following clause is the only supported shape
+        hydra.query(
+            f"MERGE (p:Plan {{id: {plan_id}}})-[r:STEP {{i: {step['i']}}}]"
+            f"->(t:Tool {{id: {node_id(step['tool'])}}})"
+        )
+
+
+def make(hydra, task, supplied=None):
+    supplied = supplied or {}
+    tools = {tool["key"]: tool for tool in load_tools(hydra)}
+    if not tools:
+        raise NoPlan("the tool graph is empty; run switchboard index")
+
+    ranked = matcher.rank(task, list(tools.values()))
+    goal = ranked[0]["key"]
+    candidates = [tool["key"] for tool in ranked[:10] if tool["key"] != goal]
+    if not candidates:
+        raise NoPlan(f"no candidate tool can reach {goal}")
+
+    paths = fetch_paths(hydra, candidates, goal)
+    if not paths:
+        raise NoPlan(f"no FEEDS path to {goal}")
+
+    path = max(paths, key=lambda item: score(item, candidates))
+    chain = [node["properties"]["key"] for node in path["nodes"]]
+    steps, required = binder.bind(tools, chain)
+    error = validator.check(steps, tools)
+    if error:
+        raise NoPlan(error)
+
+    plan_id = random.getrandbits(48)
+    save(hydra, plan_id, task, steps)
+    return {
+        "plan_id": str(plan_id),
+        "task": task,
+        "goal": goal,
+        "steps": steps,
+        "inputs": required,
+        "missing_inputs": [name for name in required if name not in supplied],
+    }
+
+
+def load(hydra, plan_id):
+    rows = hydra.query(
+        "MATCH (p:Plan {id: $id}) RETURN p.task AS task, p.steps AS steps",
+        {"id": int(plan_id)},
+    )
+    if not rows:
+        raise NoPlan(f"no plan {plan_id}")
+    task, steps = rows[0]
+    return {"plan_id": str(plan_id), "task": task, "steps": json.loads(steps)}
+
+
+def record(hydra, plan_id, wins):
+    hydra.query(
+        "MATCH (p:Plan {id: $id}) SET p.wins = $wins",
+        {"id": int(plan_id), "wins": wins},
+    )

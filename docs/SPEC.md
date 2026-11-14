@@ -113,7 +113,7 @@ No LLM on the default path. No vector store. No web app.
 ## 5. CLI and config
 
 ```bash
-switchboard add mcp issues -- python -m fixtures.issue_server
+switchboard add mcp issues -- python -m tests.fixtures.issue_server
 switchboard add mcp github --url https://api.githubcopilot.com/mcp \
   --header "Authorization=Bearer {env:GITHUB_TOKEN}"
 switchboard remove mcp issues
@@ -135,7 +135,7 @@ data, not a catalog:
   "servers": {
     "issues": {
       "transport": "stdio",
-      "command": ["python", "-m", "fixtures.issue_server"]
+      "command": ["python", "-m", "tests.fixtures.issue_server"]
     },
     "github": {
       "transport": "http",

@@ -1,0 +1,216 @@
+"""Command line: manage upstreams, index the graph, plan and run tasks."""
+
+import argparse
+import asyncio
+import json
+import os
+import sys
+from collections import Counter
+
+import requests
+
+from . import config, gateway, index, planner
+from .hydra import Hydra
+
+
+def fail(message):
+    print(f"switchboard: {message}", file=sys.stderr)
+    return 1
+
+
+def pairs(values):
+    result = {}
+    for item in values:
+        key, separator, value = item.partition("=")
+        if not separator:
+            raise ValueError(f"expected NAME=VALUE, got {item}")
+        result[key] = value
+    return result
+
+
+def add_mcp(args):
+    servers = config.load()["servers"]
+    if "." in args.name:
+        return fail("server names cannot contain a dot")
+    if args.name in servers:
+        return fail(f"{args.name} already exists; remove it first")
+    if args.url:
+        server = {"transport": "http", "url": args.url}
+        if args.header:
+            server["headers"] = pairs(args.header)
+    else:
+        command = [part for part in args.command if part != "--"]
+        if not command:
+            return fail("give a command after --, or pass --url")
+        server = {"transport": "stdio", "command": command}
+        if args.cwd:
+            server["cwd"] = args.cwd
+        if args.env:
+            server["env"] = pairs(args.env)
+
+    try:
+        tools = index.discover({args.name: server})
+    except Exception as exc:
+        return fail(f"cannot reach {args.name}: {exc}")
+
+    current = config.load()
+    current["servers"][args.name] = server
+    config.save(current)
+    print(f"added {args.name}: {len(tools)} tools")
+    for tool in tools:
+        print(f"  {tool['key']}  consumes={tool['consumes']} produces={tool['produces']}")
+    return 0
+
+
+def remove_mcp(args):
+    current = config.load()
+    if args.name not in current["servers"]:
+        return fail(f"{args.name} is not configured")
+    del current["servers"][args.name]
+    config.save(current)
+    print(f"removed {args.name}; run switchboard index to refresh the graph")
+    return 0
+
+
+def list_servers(_args):
+    current = config.load()
+    hydra = Hydra.from_config(current)
+    counts = {}
+    try:
+        counts = Counter(tool["server"] for tool in planner.load_tools(hydra))
+    except Exception as exc:
+        print(f"switchboard: graph unavailable: {exc}", file=sys.stderr)
+
+    if not current["servers"]:
+        print("no upstreams; add one with: switchboard add mcp NAME -- COMMAND")
+        return 0
+    for name, server in current["servers"].items():
+        transport = server.get("transport", "stdio")
+        target = server.get("url") if transport == "http" else " ".join(server.get("command", []))
+        print(f"{name:12} {transport:6} {counts.get(name, 0):3} tools  {target}")
+    return 0
+
+
+def index_command(_args):
+    current = config.load()
+    if not current["servers"]:
+        return fail("no upstreams; add one with: switchboard add mcp NAME -- COMMAND")
+    try:
+        tools = index.discover(current["servers"])
+    except Exception as exc:
+        return fail(str(exc))
+    nodes, edges = index.write(Hydra.from_config(current), tools)
+    headerless = [tool["key"] for tool in tools if not tool["consumes"] and not tool["produces"]]
+    print(f"indexed {nodes} tools, {edges} FEEDS edges")
+    if headerless:
+        print(f"{len(headerless)} tools have no capability header: {', '.join(headerless[:5])}")
+    return 0
+
+
+def plan_command(args):
+    current = config.load()
+    try:
+        result = planner.make(Hydra.from_config(current), args.task, pairs(args.input))
+    except planner.NoPlan as exc:
+        return fail(f"NoPlan: {exc}")
+    print(f"plan {result['plan_id']}  goal {result['goal']}")
+    for step in result["steps"]:
+        print(f"{step['i']}. {step['tool']:24} {json.dumps(step['args'])}")
+    print(f"inputs: {', '.join(result['inputs']) or 'none'}")
+    if result["missing_inputs"]:
+        print(f"missing: {', '.join(result['missing_inputs'])}")
+    return 0
+
+
+def run_command(args):
+    current = config.load()
+    try:
+        plan = planner.load(Hydra.from_config(current), args.plan_id)
+    except planner.NoPlan as exc:
+        return fail(str(exc))
+    result = asyncio.run(gateway.execute(Hydra.from_config(current), plan, pairs(args.input)))
+    print(json.dumps(result, indent=2))
+    return 0 if result["ok"] else 1
+
+
+def serve_command(args):
+    current = config.load()
+    hydra = Hydra.from_config(current)
+    tools = planner.load_tools(hydra)
+    gateway.log(f"{len(current['servers'])} upstreams, {len(tools)} indexed tools")
+    server = gateway.build(hydra)
+    if args.http:
+        host, _, port = args.http.rpartition(":")
+        server.run("streamable-http", host=host or "127.0.0.1", port=int(port))
+    else:
+        server.run("stdio")
+    return 0
+
+
+def status_command(_args):
+    current = config.load()
+    hydra = Hydra.from_config(current)
+    admin = os.getenv("HYDRADB_ADMIN_URL", "http://127.0.0.1:19090").rstrip("/")
+    try:
+        ready = requests.get(f"{admin}/readyz", timeout=2).status_code == 200
+    except requests.RequestException:
+        ready = False
+    print(f"HydraDB {hydra.url}  ready={ready}")
+    try:
+        tools = hydra.scalar("MATCH (t:Tool) RETURN count(*) AS n")
+        edges = hydra.scalar("MATCH ()-[r:FEEDS]->() RETURN count(*) AS n")
+        plans = hydra.scalar("MATCH (p:Plan) RETURN count(*) AS n")
+    except Exception as exc:
+        return fail(str(exc))
+    print(f"servers={len(current['servers'])} tools={tools} edges={edges} plans={plans}")
+    return 0
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(prog="switchboard")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    add = sub.add_parser("add", help="add an upstream MCP server")
+    add_kind = add.add_subparsers(dest="kind", required=True)
+    add_mcp_parser = add_kind.add_parser("mcp")
+    add_mcp_parser.add_argument("name")
+    add_mcp_parser.add_argument("--url")
+    add_mcp_parser.add_argument("--header", action="append", default=[])
+    add_mcp_parser.add_argument("--env", action="append", default=[])
+    add_mcp_parser.add_argument("--cwd")
+    add_mcp_parser.add_argument("command", nargs="*")
+    add_mcp_parser.set_defaults(handler=add_mcp)
+
+    remove = sub.add_parser("remove", help="remove an upstream MCP server")
+    remove_kind = remove.add_subparsers(dest="kind", required=True)
+    remove_mcp_parser = remove_kind.add_parser("mcp")
+    remove_mcp_parser.add_argument("name")
+    remove_mcp_parser.set_defaults(handler=remove_mcp)
+
+    sub.add_parser("list").set_defaults(handler=list_servers)
+    sub.add_parser("index").set_defaults(handler=index_command)
+    sub.add_parser("status").set_defaults(handler=status_command)
+
+    plan = sub.add_parser("plan")
+    plan.add_argument("task")
+    plan.add_argument("--input", action="append", default=[])
+    plan.set_defaults(handler=plan_command)
+
+    run = sub.add_parser("run")
+    run.add_argument("plan_id")
+    run.add_argument("--input", action="append", default=[])
+    run.set_defaults(handler=run_command)
+
+    serve = sub.add_parser("serve")
+    serve.add_argument("--http")
+    serve.set_defaults(handler=serve_command)
+
+    return parser
+
+
+def main(argv=None):
+    args = build_parser().parse_args(argv)
+    try:
+        return args.handler(args)
+    except ValueError as exc:
+        return fail(str(exc))
