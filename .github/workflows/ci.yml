@@ -39,6 +39,8 @@ jobs:
       - name: Build and start stack
         run: |
           cp .env.example .env
+          # Create bind-mount sources as the runner, before Docker can create them as root.
+          mkdir -p evals/results results
           docker compose up -d --build
       - name: Real backend probe
         run: python scripts/probe.py
