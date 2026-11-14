@@ -15,7 +15,10 @@ def tokens(text):
 
 def rank(task, tools):
     query = tokens(task)
-    docs = [tokens(f"{tool['key'].replace('.', ' ')} {tool['description']}") for tool in tools]
+    docs = [
+        tokens(f"{tool['key'].replace('.', ' ')} {tool['key'].replace('.', ' ')} {tool['description']}")
+        for tool in tools
+    ]
     average = sum(len(doc) for doc in docs) / len(docs) if docs else 1.0
     document_frequency = Counter()
     for doc in docs:

@@ -27,7 +27,7 @@ def decode(value):
 
 def node_id(key):
     """Stable integer id for a `server.tool` key. OSS merges on integer ids."""
-    return int.from_bytes(hashlib.sha256(key.encode()).digest()[:6], "big")
+    return int.from_bytes(hashlib.sha256(key.encode()).digest()[:5], "big")
 
 
 class Hydra:

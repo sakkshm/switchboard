@@ -35,12 +35,14 @@ def _literal(value):
 
 
 def fetch_paths(hydra, sources, goal):
+    # pairwise: true drops every source whose internal id is not below the
+    # target's, so a many-source lookup must opt out of pair dedupe.
     source_values = ", ".join(_literal(source) for source in sources)
     query = f"""CALL algo.MSpaths({{
   sourceLabel: 'Tool', sourceProperty: 'key', sourceValues: [{source_values}],
   targetLabel: 'Tool', targetProperty: 'key', targetValues: [{_literal(goal)}],
   relTypes: ['FEEDS'], relDirection: 'outgoing',
-  maxLen: 6, pathCount: 20, pairwise: true, resultLimit: 50
+  maxLen: 6, pathCount: 20, pairwise: false, resultLimit: 50
 }}) YIELD path RETURN path"""
     return [row[0] for row in hydra.query(query)]
 
@@ -48,8 +50,8 @@ def fetch_paths(hydra, sources, goal):
 def score(path, candidates):
     keys = [node["properties"]["key"] for node in path["nodes"]]
     weights = [relationship["properties"].get("weight") or 1.0 for relationship in path["relationships"]]
-    coverage = len(set(keys[:-1]) & set(candidates))
-    return coverage * 2 - len(weights) * 0.1 + sum(weights) / len(weights)
+    coverage = len(set(keys) & set(candidates))
+    return coverage * 2 + len(keys) * 0.5 + sum(weights) / len(weights)
 
 
 def save(hydra, plan_id, task, steps):
@@ -86,11 +88,12 @@ def make(hydra, task, supplied=None):
 
     ranked = matcher.rank(task, list(tools.values()))
     goal = ranked[0]["key"]
-    candidates = [tool["key"] for tool in ranked[:10] if tool["key"] != goal]
-    if not candidates:
-        raise NoPlan(f"no candidate tool can reach {goal}")
+    candidates = [tool["key"] for tool in ranked[:20] if tool["key"] != goal]
+    sources = [key for key in tools if key != goal]
+    if not sources:
+        raise NoPlan("the graph has only one tool")
 
-    paths = fetch_paths(hydra, candidates, goal)
+    paths = fetch_paths(hydra, sources, goal)
     if not paths:
         raise NoPlan(f"no FEEDS path to {goal}")
 

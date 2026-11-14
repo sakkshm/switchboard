@@ -44,7 +44,11 @@ async def list_tools(server):
 
 def value(result):
     if result.structured_content is not None:
-        return result.structured_content
+        structured = result.structured_content
+        # Python MCP servers wrap a bare scalar return in {"result": x}
+        if isinstance(structured, dict) and list(structured) == ["result"]:
+            return structured["result"]
+        return structured
     text = "".join(block.text for block in result.content if getattr(block, "type", "") == "text")
     try:
         return json.loads(text)
