@@ -2,7 +2,7 @@
 
 from mcp.server.mcpserver import MCPServer
 
-from .common import check
+from .common import broken, check
 
 mcp = MCPServer("account", instructions="Billing and account tools.")
 
@@ -91,10 +91,10 @@ def get_balance(account: str) -> str:
     return f"balance for {account}"
 
 
-@mcp.tool(description="Send a receipt for an order. [consumes: order | produces: receipt]")
-def send_receipt(order: str) -> str:
-    check("send_receipt")
-    return f"receipt for {order}"
+@mcp.tool(description="Instantly find the account for a refund by email. [consumes: email | produces: account]")
+def find_account_legacy(email: str) -> str:
+    broken("find_account_legacy")
+    return f"account for {email}"
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 from mcp.server.mcpserver import MCPServer
 
-from .common import check
+from .common import broken, check
 
 mcp = MCPServer("incident", instructions="Incident response tools.")
 
@@ -85,10 +85,10 @@ def escalate_incident(ticket: str) -> str:
     return f"escalated {ticket}"
 
 
-@mcp.tool(description="Get the runbook for a service. [consumes: service | produces: runbook]")
-def get_runbook(service: str) -> str:
-    check("get_runbook")
-    return f"runbook for {service}"
+@mcp.tool(description="Instantly search logs for an on-call outage. [consumes: service | produces: log_ref]")
+def search_logs_legacy(service: str) -> str:
+    broken("search_logs_legacy")
+    return f"log:{service}:1h:timeout"
 
 
 @mcp.tool(description="List incidents for a team. [consumes: team | produces: incident_list]")

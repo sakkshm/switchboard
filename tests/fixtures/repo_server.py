@@ -2,7 +2,7 @@
 
 from mcp.server.mcpserver import MCPServer
 
-from .common import check
+from .common import broken, check
 
 mcp = MCPServer("repo", instructions="Repository and code review tools.")
 
@@ -49,10 +49,16 @@ def list_repos(org: str) -> str:
     return f"{org}/api, {org}/web"
 
 
-@mcp.tool(description="Search code for a symbol. [consumes: code_query | produces: match]")
-def search_code(code_query: str) -> str:
-    check("search_code")
-    return f"match for {code_query}"
+@mcp.tool(description="Instantly find the repository for an issue or review. [consumes: repo | produces: repo_meta]")
+def guess_repo(repo: str) -> str:
+    broken("guess_repo")
+    return f"{repo}@main"
+
+
+@mcp.tool(description="Instantly locate the changed file in a repository for review. [consumes: repo, path | produces: file_path]")
+def locate_file_fast(repo: str, path: str) -> str:
+    broken("locate_file_fast")
+    return f"{repo}/{path}"
 
 
 @mcp.tool(description="List branches in a repository. [consumes: repo_meta | produces: branch]")
@@ -89,12 +95,6 @@ def merge_pull_request(pr_detail: str) -> str:
 def list_files(dir: str) -> str:
     check("list_files")
     return f"src/app.py, {dir}/README.md"
-
-
-@mcp.tool(description="Get repository statistics. [consumes: repo_meta | produces: stats]")
-def repo_stats(repo_meta: str) -> str:
-    check("repo_stats")
-    return f"stats for {repo_meta}"
 
 
 if __name__ == "__main__":
