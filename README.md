@@ -1,9 +1,6 @@
 # Switchboard
 
-An MCP gateway that gives an agent the four tools that chain, in order, instead
-of the whole catalog.
-
----
+Graph based MCP gateway that compiles tasks into ordered tool chains without context bloat.
 
 ## The problem
 
@@ -90,36 +87,38 @@ The graph is the product, not a cache in front of one.
 (:Decision {agent, tool, verdict, reason, ts})
 ```
 
-One query per plan:
+One traversal per plan:
 
 ```cypher
-MATCH p = (entry:Tool)-[:FEEDS*1..6]->(goal:Tool {key: $goal})
-WHERE entry.key IN $candidates
-RETURN [n IN nodes(p) | n.key] AS chain,
-       [n IN nodes(p) | n.name] AS names,
-       length(p) AS hops
-ORDER BY hops ASC
-LIMIT 25
+CALL algo.MSpaths({
+  sourceLabel: 'Tool', sourceProperty: 'key', sourceValues: [...],
+  targetLabel: 'Tool', targetProperty: 'key', targetValues: [goal],
+  relTypes: ['FEEDS'], relDirection: 'outgoing',
+  maxLen: 6, pathCount: 10, pairwise: true, resultLimit: 50
+}) YIELD path RETURN path
 ```
 
-The path is the plan. Python scores paths by candidate coverage and picks one;
-it does not sort tools by hand, because order is a property of the data.
+Candidate keys are validated and inlined; the OSS planner does not accept a
+parameter list there. The path is the plan. Python scores paths by candidate
+coverage and picks one; it does not sort tools by hand, because order is a
+property of the data.
 
 Two independent checks must agree: the path exists in the graph, and the types
 line up. If either fails, there is no plan.
 
-**Removal test.** With the collection empty, `plan()` raises `NoPlan`. There is
+**Removal test.** With the graph empty, `plan()` raises `NoPlan`. There is
 no fallback catalog and no local ordering heuristic. That is a test in CI, not a
 claim in a paragraph.
 
-**Transport.** `POST /byog/query` on HydraDB Cloud. No self-hosted engine, no
-Docker, no async indexing. A plan is one synchronous call that returns row
-dicts.
+**Transport.** HydraDB OSS 0.4.0, started with Docker Compose next to MinIO.
+One synchronous `POST /v1/graphs/default/query`; results are typed cells,
+decoded in the store client. MinIO is required: the local filesystem store
+does not implement the updates that plans and edge weights need.
 
-**Second use, P1.** When BM25 confidence is low, the gateway asks
-`client.query()` over ingested tool docs and past failure notes to pick the goal
-tool. That is the one thing a pure graph database cannot do, and the honest
-answer to "why HydraDB and not Neo4j."
+**Learning loop, P1.** A successful run raises `FEEDS.weight` on the edges it
+used; a failed step lowers them. The planner scores paths by candidate coverage
+plus weight, and the eval reports top-1 plan accuracy against a BM25 baseline
+and a uniform-weight graph over 5 rounds with a holdout.
 
 **What we do not do with it.** No entity resolution, no dedupe, no merging
 records from different sources, no vector search over the catalog. Storing a
@@ -135,7 +134,7 @@ step's result is keyed by `(tool, hash(args))` and combined with nothing.
 | Filesystem and git MCP servers | real, no auth |
 | Order-validity numbers | measured on the golden set, 3 reps |
 | 100x scale test | synthetic, labeled as such |
-| Auth, multi-tenancy, deployment | not built. Stated as out of scope |
+| Auth, multi-tenancy, production hardening | not built. Stated as out of scope |
 | LLM baseline | optional, offline, never in the demo path |
 
 ## Architecture
@@ -146,28 +145,26 @@ MCP client (opencode, Claude, any agent)
     v
 Switchboard (FastAPI + MCP server)
     |-- matcher    BM25 over catalog.json
-    |-- planner    one /byog/query -> ordered path
+    |-- planner    one /v1/graphs/default/query -> ordered path
     |-- validator  consumes/produces check
     |-- binder     $input / $steps.N.result
     |-- executor   tools/call, grants, timeouts, audit
     +-- trace      /trace/{id}, /metrics, /evals
     |
     v
-HydraDB Cloud  POST /byog/query
-    ^
-    |
+HydraDB OSS 0.4.0  (Docker Compose)
+    |  POST /v1/graphs/default/query
+    v
+MinIO (S3-compatible)
+
 N MCP servers (fixture, filesystem, git)
 ```
 
 ## Quickstart
 
 ```bash
-cp .env.example .env          # HYDRADB_API_KEY
-pip install -r requirements.txt
-python scripts/probe.py       # six checks against the cloud, fails loudly
-python scripts/seed.py        # idempotent, safe to rerun
-make dev                      # http://localhost:8000
-python evals/run.py --reps 3
+cp .env.example .env
+docker compose up -d --build  # HydraDB OSS, MinIO, Switchboard on :8000
 ```
 
 ## Non-goals
