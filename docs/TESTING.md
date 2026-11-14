@@ -1,6 +1,6 @@
 # Backend verdict and test plan
 
-Status: 2026-11-14. The hackathon requires the open-source engine, so the
+Status: 2026-11-15. The hackathon requires the open-source engine, so the
 managed platform is out. This file records what was proven, what is still open,
 and the order to build. Submission cutoff: 9 AM IST, Nov 16.
 
@@ -17,7 +17,7 @@ writes. MinIO fixed every one of them. Pin the image digest for the demo.
 |---|---|---|
 | Engine starts | PASS | PASS |
 | Node batch upsert | partial | PASS |
-| Edge batch upsert, rerun stays 6 | FAIL | PASS |
+| Edge batch upsert, rerun stable | FAIL | PASS |
 | Plan steps, `ORDER BY s.i` | PASS | PASS |
 | `wins` update | FAIL | PASS |
 | Type, grant, decision nodes | FAIL | PASS |
@@ -43,62 +43,66 @@ writes. MinIO fixed every one of them. Pin the image digest for the demo.
 | B12 | Grouped count | `RETURN t.key AS k, count(*) AS n` works |
 | B13 | Edge weights | `SET r.weight`, batch update, hydrated in the path result |
 | B14 | Restart | node, edge, step, wins, and weight all survived |
-| B15 | Footprint | HydraDB 17 MB, MinIO 152 MB |
+| B15 | Compose stack | MinIO and HydraDB healthy, probe 6/6 on 2026-11-14 |
+| B16 | Named-volume ownership | image runs as uid 10001; init service chowns the cache volume |
+
+The product uses B1, B2, B3, B6, B11, B13, and B16. B8, B9, and B10 were
+verified but are not in the new P0 graph. They can return later for grants and
+audit.
 
 ## 2. Not proven
 
 | # | Check | Blocked by |
 |---|---|---|
 | N1 | 60-tool fixture has six real 4-tool chains | fixture not built |
-| N2 | Seed at 60 tools / 100 edges | fixture not built |
-| N3 | 24-task golden set, baseline vs learning curve | evals not built |
-| N4 | `find` / `describe` / `run` MCP round-trip | gateway not built |
+| N2 | `switchboard index` seeds 60 tools and derived edges | CLI/index not built |
+| N3 | `find` / `run` MCP round-trip in a real client | gateway not built |
+| N4 | `switchboard add mcp` / `list` / `remove` / `serve` | CLI not built |
 | N5 | Removal test: empty graph means `NoPlan` | planner not built |
-| N6 | Read-only refusal, second-run counters | executor/UI not built |
-| N7 | Live link, public repo, Loom | submission work |
-| N8 | 20 concurrent `/compare` | app not built |
+| N6 | Baseline 60 vs gateway 2 in OpenCode | A/B not built |
+| N7 | 5-round learning curve on a holdout | evals not built |
+| N8 | HTTP daemon with two clients | HTTP not built |
+| N9 | Landing page, public repo, Loom | submission work |
 
 ## 3. Stack runbook (verified)
 
 MinIO on 19000, HydraDB on 18443. The host already runs another MinIO on 9000,
-so do not use that port.
+so do not use that port. The gateway runs from the host, not from Compose.
 
 ```bash
-mkdir -p /tmp/hydra/minio /tmp/hydra/cache
-printf '%s\n' 'local-development-token-32-bytes' > /tmp/hydra/auth-token
-chmod -R 777 /tmp/hydra
+cp .env.example .env
+docker compose up -d --wait
 
-docker network create hydradb-net
+docker compose ps
+curl -fsS http://127.0.0.1:19090/readyz
 
-docker run -d --name minio --network hydradb-net \
-  -p 19000:9000 -p 19001:9001 \
-  -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
-  -v /tmp/hydra/minio:/data \
-  minio/minio server /data --console-address ":9001"
-
-docker run --rm --network hydradb-net --entrypoint /bin/sh minio/mc -c \
-  "mc alias set local http://minio:9000 minioadmin minioadmin &&
-   mc mb -p local/hydradb"
-
-docker run -d --name hydradb --network hydradb-net \
-  -p 18443:8443 -p 17687:7687 -p 19090:9090 \
-  -e CLOUD_PROVIDER=aws -e AWS_BUCKET_NAME=hydradb \
-  -e AWS_DEFAULT_REGION=us-east-1 -e AWS_ALLOW_HTTP=true \
-  -e AWS_ENDPOINT=http://minio:9000 \
-  -e AWS_ACCESS_KEY_ID=minioadmin -e AWS_SECRET_ACCESS_KEY=minioadmin \
-  -e AWS_VIRTUAL_HOSTED_STYLE_REQUEST=false \
-  -e GRAPH_DATA_PATH=slatedb-graph/data -e GRAPH_DATABASE=default \
-  -e GRAPH_NAMESPACE=default -e GRAPH_ID=default \
-  -e GRAPH_CELL_ID=cell-0 -e GRAPH_CELLS=cell-0 -e GRAPH_NODE_ID=node-0 \
-  -e GRAPH_BOLT_NODE_ADDRESSES=node-0=127.0.0.1:7687 \
-  -e GRAPH_ADVERTISED_BOLT_ADDR=127.0.0.1:7687 \
-  -e GRAPH_DATA_CACHE_DIR=/data/cache \
-  -e GRAPH_AUTH_TOKEN_FILE=/data/auth-token \
-  -e GRAPH_ALLOW_PLAINTEXT=true -e RUST_MIN_STACK=33554432 \
-  -e GRAPH_USAGE_REPORT_ENABLED=false \
-  -v /tmp/hydra/cache:/data/cache -v /tmp/hydra/auth-token:/data/auth-token \
-  ghcr.io/hydra-db/hydradb:latest
+python scripts/probe.py
+# PASS readyz: 200
+# PASS node batch: 4 tools
+# PASS edge batch: 3 edges, rerun stable
+# PASS path query: probe_a -> probe_b -> probe_c -> probe_d
+# PASS plan steps: probe_a -> probe_b -> probe_c -> probe_d
+# PASS edge weight: weight 0.25 hydrated
+# 6/6 PASS
 ```
+
+Logs:
+
+```bash
+docker compose logs -f hydradb
+docker compose logs -f minio
+```
+
+Reset to a clean store:
+
+```bash
+docker compose down -v
+docker compose up -d --wait
+```
+
+The Compose file has a busybox `hydradb-auth` init service. It writes the token
+to a named volume and chowns that volume and `hydradb-cache` to 10001. Without
+the chown, HydraDB exits with `Permission denied` on `/data/cache/shared`.
 
 Endpoint: `POST http://127.0.0.1:18443/v1/graphs/default/query`
 Headers: `Authorization: Bearer local-development-token-32-bytes`,
@@ -151,67 +155,185 @@ comprehensions, `LOCAL_PATH` for writes, or Cypher index creation in 0.4.0.
 `MSpaths` omits pairs with no path. Join results back by endpoint id.
 `sourceValues` must be a literal list of validated keys, not a parameter.
 
-## 5. Track and judging
+## 5. Gateway checks (target)
+
+These are the checks to run once the CLI and gateway land. They are not proven
+yet.
+
+### CLI and config
+
+```bash
+switchboard add mcp issues -- python -m fixtures.issue_server
+switchboard list
+switchboard remove mcp issues
+switchboard add mcp issues -- python -m fixtures.issue_server
+```
+
+Pass: the config file contains only the command, `list` prints the server and
+tool count, and no secret is written.
+
+### Index
+
+```bash
+switchboard index
+switchboard index
+```
+
+Pass: 60 tools, the same node and edge counts on both runs, and no duplicate
+edges. Query back one cross-server `FEEDS` edge and one 4-tool path.
+
+### Plan
+
+```bash
+switchboard plan "comment on the failing test issue in acme/api"
+```
+
+Pass: four tool keys in order, every step's consumed types produced earlier, a
+plan id printed, and `NoPlan` when the graph is empty.
+
+### MCP round-trip
+
+Start the gateway:
+
+```bash
+switchboard serve
+```
+
+It speaks MCP over stdio, so a human shell is not the client. Use the OpenCode
+config below or an MCP inspector.
+
+Pass: `tools/list` returns exactly `find` and `run`; `find` returns a plan;
+`run` executes four upstream calls and returns four results.
+
+### OpenCode baseline vs gateway
+
+Baseline config, in `evals/harness/baseline/opencode.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "issues": {
+        "type": "local",
+        "command": ["python", "-m", "fixtures.issue_server"],
+        "codemode": false
+      },
+      "repo": {
+        "type": "local",
+        "command": ["python", "-m", "fixtures.repo_server"],
+        "codemode": false
+      },
+      "incident": {
+        "type": "local",
+        "command": ["python", "-m", "fixtures.incident_server"],
+        "codemode": false
+      },
+      "account": {
+        "type": "local",
+        "command": ["python", "-m", "fixtures.account_server"],
+        "codemode": false
+      }
+    }
+  }
+}
+```
+
+Gateway config, in `evals/harness/gateway/opencode.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "switchboard": {
+        "type": "local",
+        "command": ["switchboard", "serve"],
+        "codemode": false
+      }
+    }
+  }
+}
+```
+
+Run each from its own directory:
+
+```bash
+cd evals/harness/baseline
+opencode mcp list
+opencode run --format json "comment on the failing test issue in acme/api"
+```
+
+Pass: baseline exposes 60 native tools; gateway exposes 2; the gateway plan has
+4 steps and `run` executes them. Record tool calls, tokens, and errors.
+
+`codemode: false` matters. With OpenCode's default Code Mode, MCP tools are
+grouped behind one executor, so the baseline's 60 tools are not a native tool
+list and the counter is not comparable. Turn it off on both sides.
+
+## 6. Track and judging
 
 Pick **Track 2, the agent context layer**. The product is the described shape:
 the agent asks for a task, the gateway traverses tool capabilities, and only the
-four needed tools enter the window.
+four needed tools are named in the plan.
 
-The technical criteria also demand a learning curve and a baseline, so add one
-small loop that is already supported:
+The judging criteria also demand a learning curve and a baseline:
 
 - Baseline: BM25 rank order, no graph.
 - Static graph: `MSpaths` with uniform edge weights.
 - Learning graph: after each task, `FEEDS.weight` goes up on success and down
   on failure; the planner scores paths by candidate coverage plus weight.
 - Run 5 rounds on a train split, report top-1 plan accuracy and task success on
-  a held-out split. Expect the learning line to rise over static and baseline.
+  a held-out split.
 - The fixture must contain distractor paths, or weights have nothing to learn.
 
 Right metrics: top-1 plan accuracy, task success, order validity, tools and
 tokens in context, graph calls per task, p95 plan latency. Not a single timing.
 
-### P1: LLM graph bootstrap
+### What not to claim
 
-Offline only, after the core demo works. One call per tool family proposes
-`consumes` / `produces` from names, descriptions, and schemas; the result is
-cached in `catalog/ontology.json`, diffed, and committed. The demo seeds from
-the cache, so the Loom never depends on a model being up.
+- Do not claim four tools in context. The client sees two gateway tools; the
+  plan names four upstream tools. Say both numbers.
+- Do not claim a hosted live link. The demo is a local gateway and a Loom.
+- Do not claim the managed semantic retrieval tier. OSS has traversal, plans,
+  and weights.
+- Do not claim the 60 tools are real. They are our fixture servers.
 
-This improves onboarding for real MCP servers, which do not declare outputs. It
-does not replace the learning loop: a one-time inference is a baseline, not a
-curve. Measured against the fixture headers it gives a precision/recall number,
-and the validator plus execution reject bad edges.
-
-Do not claim the managed `client.query()` semantic tier. The OSS engine does
-not have it. The graph-native claim is traversal plus saved plans plus weights.
-
-## 6. Build order to the deadline
+## 7. Build order to the deadline
 
 | Order | Work | Gate |
 |---|---|---|
-| 1 | Fixture catalog, 60 tools, 6 chains, chain_check | G1 |
-| 2 | Store client, typed-cell decoder, seed, reset | G2 |
-| 3 | Matcher, planner, validator, removal test | G3 |
-| 4 | Binder, executor, grants, audit | G3 |
-| 5 | `/compare`, counters, chain strip, read-only toggle | G4 |
-| 6 | Eval harness, baseline, 5-round learning curve | judging |
-| 7 | Host app, public repo, Loom, social post | submission |
+| 1 | CLI, config, gateway skeleton, one fixture server | G1 |
+| 2 | Four fixture servers, 60 tools, 6 chains, chain_check | G2 |
+| 3 | Index, matcher, planner, validator, removal test | G3 |
+| 4 | Binder, executor, `find` / `run`, OpenCode A/B | G4 |
+| 5 | Eval harness, BM25/uniform/learned, 5-round curve | G5 |
+| 6 | HTTP daemon, landing page, public repo, Loom | G6 |
 
-Cut if behind: scale test, trace page, memoization, LLM baseline, catalog page,
-eval HTML. Never cut: removal test, eval numbers, blocked write, honest backend
-line, live link.
+Cut if behind: HTTP, write refusal, plan reuse, adversarial set, scale test,
+LLM baseline. Never cut: removal test, eval numbers, BM25 baseline, honest
+2-tools-vs-4-steps line.
 
-## 7. Traps
+## 8. Traps
 
 - `mcp` 2.x renamed `FastMCP` to `MCPServer`; `CallToolResult.isError` is
   `is_error`. Pin the version or use the new API.
-- OSS uses integer `id` for MERGE, not an arbitrary key. Map catalog keys to
-  stable ids at seed time.
+- A stdio MCP server must not print logs to stdout. Use stderr for every log,
+  including tracebacks from upstream tools.
+- OSS uses integer `id` for MERGE, not an arbitrary key. Map `server.tool` to a
+  stable id at index time.
 - Edge batches use `CREATE` without labels and dedupe on `(src, dst, type)`.
   Chunk at 1000; the cap is 1024.
 - `MSpaths` returns all paths for a source-target pair, not a ranked plan.
   Scoring stays in Python.
 - Edge weight expressions are not supported. Read, add in Python, write a
   literal or parameter.
+- Config headers must store `{env:NAME}`, not the secret. The CLI must not echo
+  the resolved value.
+- The fixture capability header is a convention, not MCP. Real servers need
+  output types or a manifest. Say so.
+- OpenCode with default Code Mode groups MCP tools; set `codemode: false` for
+  both sides of the A/B.
 - The engine reports anonymous usage by default. Disable it for the demo.
+- The HydraDB image runs as uid 10001. Named volumes start root-owned; the init
+  service must chown them or the container exits 1.

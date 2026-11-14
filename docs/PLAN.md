@@ -1,179 +1,266 @@
 # Switchboard build plan
 
-> Backend note (2026-11-14): the hackathon requires the open-source engine.
-> Run it with Docker Compose (`compose.yaml`: HydraDB OSS 0.4.0 + MinIO).
-> The managed platform is out of scope; OSS steps are in B1 and B3.
-> `TESTING.md` has the verified query cookbook and traps.
+> Backend note (2026-11-15): the hackathon requires the open-source engine.
+> Run HydraDB OSS 0.4.0 with Docker Compose (`compose.yaml`: HydraDB + MinIO).
+> The managed platform is out of scope. `TESTING.md` has the verified query
+> cookbook and traps.
 
 What to build, in what order, and what proves each step is done.
 Product rationale is in `SPEC.md`. This file is only the schedule.
 
-Hours are H+0 from whenever you start. If you are already at H+6, jump to the
-next gate and skip the prose.
-
-Repo: `hydradb-hack/switchboard`.
+Repo: `sakkshm/switchboard`.
 
 ---
 
-## 1. The five gates
+## 1. The gates
 
 | Gate | Hour | Passes when | If it fails |
 |---|---|---|---|
-| **G0 Backend** | H+1 | `docker compose up -d` is healthy and `scripts/probe.py` prints 6/6 PASS | Fix compose, MinIO, or the S3 env before writing app code |
-| **G1 Chain** | H+4 | 6 tasks have a 4-tool chain with 3 bindings, proven by `evals/chain_check.py` | No ordering claim. Pivot to the eval-harness idea, today |
-| **G2 Path** | H+6 | One `algo.MSpaths` call returns a 4-tool chain from seeded data | Fix the query, not the product. Two hours max |
-| **G3 Plan** | H+10 | `/plan` returns 4 ordered tools for 6 tasks, validator passes | Drop to 2 families, one chain, still ships |
-| **G4 Demo** | H+13 | `/compare` shows 60 tools vs 4, and the right column executes with a visible side effect | Cut every P1. Ship counters and the eval table |
+| **G0 Backend** | done | `docker compose up -d` is healthy and `scripts/probe.py` prints 6/6 PASS | Already passed on Nov 14 |
+| **G1 Gateway** | H+3 | One fixture upstream added by CLI; `switchboard serve` exposes 2 tools; OpenCode runs a 2-step plan | Fix transport and config before fixtures |
+| **G2 Fixture** | H+5 | 60 tools, four servers, six 4-step tasks; `evals/chain_check.py` prints six chains | No ordering claim. Pivot to the eval-harness idea, today |
+| **G3 Plan** | H+8 | `switchboard index` discovers 60 tools; `switchboard plan` prints 4 ordered tools; validator rejects a bad chain | Drop to 2 families, one chain, still ships |
+| **G4 A/B** | H+11 | Same task in OpenCode: baseline sees 60 tools, gateway sees 2 and executes 4 steps | Cut every P1. Ship counters and the eval table |
+| **G5 Learning** | H+15 | 5 rounds, holdout, BM25 vs uniform vs learned, table printed | Report uniform graph and baseline, drop the curve |
+| **G6 Ship** | H+18 | Landing page, public repo, Loom, two social posts | Ship what works, state what does not |
 
-G1 is the project. Everything after it is execution.
+G2 is the project. If a four-tool chain does not exist, there is no ordering
+product. Do not build the planner first.
 
 ---
 
 ## 2. Blocks
 
-### B1. Backend probe, H+0 to H+1
+### B1. Backend probe, done
 
-Build:
+Verified on Nov 14:
 
-- `compose.yaml`: `minio`, `hydradb`, `switchboard`. MinIO on 19000/19001,
-  HydraDB on 18443/17687/19090, app on 18000 (8000 is taken on this machine).
-  Healthchecks and `depends_on`. The busybox init writes the auth token and
-  chowns the cache volume, because HydraDB runs as uid 10001.
-- `Dockerfile`, `.dockerignore`, `.env.example`, `.gitignore`, `requirements.txt`
-  (`fastapi`, `uvicorn`, `requests`, `mcp`, `pytest`, `ruff`)
-- `app/store.py`: the HTTP client and typed-cell decoder; `scripts/probe.py`:
-  six checks, printed PASS/FAIL, non-zero exit on any failure
+- `compose.yaml`: MinIO on 19000/19001, HydraDB on 18443/17687/19090.
+  Healthchecks, named volumes, and a busybox init that writes the auth token
+  and chowns the cache volume to uid 10001.
+- `.env.example`, `.gitignore`, `requirements.txt`
+- `app/store.py`: HTTP client and typed-cell decoder; `scripts/probe.py`: six
+  checks, PASS/FAIL, non-zero exit on failure
 
-The six checks, in this order:
+The six checks:
 
 1. `GET http://127.0.0.1:19090/readyz` returns 200
-2. `UNWIND $rows AS row MERGE (n {id: row.id}) SET n:Tool, n.key = row.key, n.name = row.name` with 4 rows; count is 4
+2. Node batch with 4 rows; count is 4
 3. Edge batch with 3 rows; rerun leaves the count at 3
 4. `algo.MSpaths` returns the 4-tool chain in order
-5. `MERGE (p:Plan {id: 100})-[:STEP {i: 0}]->(t:Tool {id: 1})`; read back with `ORDER BY s.i`
-6. `SET r.weight = $w`, read it back, and see it hydrated in the path result
+5. Plan steps read back with `ORDER BY s.i`
+6. `SET r.weight`, read back, and hydrated in the path result
 
-Check 4 tests the planner query shape. Check 5 tests reading a plan back.
-Check 6 tests the learning signal.
+Result: `6/6 PASS`.
 
-Verify: `docker compose up -d` is healthy, then `python scripts/probe.py` exits 0
-with `6/6`.
-
-Fallbacks, decided now so you do not deliberate later:
+Fallbacks, decided now:
 
 - `readyz` fails: check the `hydradb` bucket, `AWS_ENDPOINT=http://minio:9000`,
   and `AWS_VIRTUAL_HOSTED_STYLE_REQUEST=false`
-- Writes fail with `PutMode::Update`: `CLOUD_PROVIDER` is `local`. Use the
-  MinIO-backed service; the local filesystem store cannot update
+- Writes fail with `PutMode::Update`: `CLOUD_PROVIDER` is `local`. Use MinIO;
+  the local filesystem store cannot update
+- Volume permission denied: the image runs as 10001, the init service must
+  chown `hydradb-cache`
 - No path: `MSpaths` omits pairs with no path. Join by endpoint id and raise
   `maxLen` or `pathCount`
 - Plan order fails: fall back to `(:Plan)-[:STEP]->(:Step {i})-[:USES]->(:Tool)`.
   This was not needed on 0.4.0
 
-### B2. Fixture catalog and the chain check, H+1 to H+4
+### B2. CLI and gateway skeleton, H+1 to H+3
 
-Build `catalog/fixture_server.py`: an MCP stdio server, 60 tools, 4 families of 15. Deterministic, no network, injectable failures via env var.
+Build the smallest end-to-end gateway before the 60-tool fixture.
 
-MCP does not declare outputs. Encode capability in one line at the end of each description, machine-readable:
+Files:
+
+- `pyproject.toml`: package, console script `switchboard`, deps `mcp`,
+  `requests`; dev deps `pytest`, `ruff`
+- `switchboard/config.py`: read and write `~/.config/switchboard/config.json`;
+  `{env:NAME}` substitution in headers; no secrets written
+- `switchboard/cli.py`: `add mcp <name>`, `remove mcp <name>`, `list`, `index`,
+  `plan`, `run`, `serve`, `status`
+- `switchboard/gateway.py`: `MCPServer` with async `find` and `run`; stdio by
+  default, Streamable HTTP with `--http`; logs to stderr only
+- `switchboard/hydra.py`: move the verified store client and decoder from
+  `app/store.py`
+- `fixtures/echo_server.py`: two tools, `echo_a` and `echo_b`, with the
+  capability header. Throwaway once the real fixture exists
+
+CLI shape:
+
+```bash
+switchboard add mcp echo -- python -m fixtures.echo_server
+switchboard list
+switchboard index
+switchboard plan "echo then play it back"
+switchboard serve
+```
+
+Verify:
+
+```bash
+opencode mcp list                         # switchboard connected
+opencode run --format json "echo a value, then play it back"
+```
+
+The gateway log prints discovered tools, the chosen plan, and the executed
+steps. The client must see exactly two tools, `find` and `run`.
+
+Fallbacks:
+
+- MCP tools do not appear at gateway startup: lazy discovery on the first
+  `find`, not a startup crash
+- stdio transport corrupts: every log line goes to stderr; stdout is protocol
+- HTTP transport fails: ship stdio. HTTP is a P1 convenience
+- Upstream session cannot stay open: reconnect per `run`, with a clear error
+
+### B3. Fixture and chain check, H+3 to H+5
+
+Build `fixtures/`:
+
+- Four stdio MCP servers, 15 tools each, 60 total:
+  `issue_server`, `repo_server`, `incident_server`, `account_server`
+- Deterministic, no network, no random values that break bindings. Injectable
+  failure via `SWITCHBOARD_FAIL_TOOL` for the evaluator
+- Every description ends with one machine-readable line:
 
 ```
 Read an issue by number. [consumes: repo,issue_number | produces: issue]
 ```
 
-Plus `annotations.readOnlyHint` / `destructiveHint` where the client sends them; treat the description header as authoritative.
+- `annotations.readOnlyHint` / `destructiveHint` where applicable. The header
+  is authoritative for the graph
+- Tool results include the fields later steps need, so a real 4-step chain runs
 
-Write `evals/chain_check.py`:
+Build `evals/chain_check.py`:
 
-- for each tool: `consumes` must be non-empty or the tool must be an entry point
-- for each `FEEDS` pair derived from the catalog: assert the types actually intersect
-- for 6 chosen tasks: assert a 4-step chain exists with a binding between every adjacent pair
-- print the chains, exit 1 if fewer than 6
-
-Verify: `python evals/chain_check.py` prints 6 chains of length >= 4.
-
-This is G1. Do not proceed if it fails.
-
-### B3. Seed, H+4 to H+6
-
-Build:
-
-- `scripts/seed.py`: `tools/list` from each server, parse the capability header, derive `FEEDS` cross-server, write nodes in one batch (integer ids, label-free `MERGE`, then `SET` the label and key), then edges in another, chunked at 1000
-- write `catalog/catalog.json` as a committed snapshot, so tests do not depend on a live server
-- `scripts/reset.py`: `docker compose down -v` then `docker compose up -d`, for a clean store and repeatable runs
+- Connect to each fixture server with a real MCP client
+- Parse `consumes` / `produces` from `tools/list`
+- For every derived `FEEDS` pair, assert the types actually intersect
+- For 6 tasks, assert a 4-step chain exists with a binding between every
+  adjacent pair
+- Print the chains; exit 1 if fewer than 6
 
 Verify:
 
-```
-python scripts/seed.py
-python scripts/seed.py            # idempotent: same counts, exit 0
-```
-
-and one query returning a 4-chain. That is G2.
-
-### B4. Planner, H+6 to H+10
-
-Build `app/matcher.py`, `app/planner.py`, `app/validate.py`:
-
-- matcher: BM25 over `catalog.json` descriptions, in memory. Returns goal tool + up to 10 candidates. Pure Python, no dependency, no model.
-- planner: the one `algo.MSpaths` call from `TESTING.md` section 4; inline validated candidate keys; score paths by candidate coverage minus 0.1 per hop; `NoPlan` when empty
-- validate: every consumed type is produced by an earlier step or supplied by input; return the failing index when not
-
-Verify:
-
-```
+```bash
+python evals/chain_check.py
 pytest tests/unit -q
-python scripts/plan_cli.py "comment on the failing test issue in acme/api"
+ruff check .
 ```
 
-prints 4 tools in order, and `pytest tests/unit/test_order.py` passes with a hand-built bad chain rejected.
+This is G2. Do not proceed if it fails.
 
-That is G3.
-
-### B5. Executor, binder, grants, H+10 to H+13
+### B4. Index and planner, H+5 to H+8
 
 Build:
 
-- `app/binder.py`: three sources, five ops, `KeyError` on anything else
-- `app/executor.py`: `tools/call` with a 10 s timeout, grant re-check before each call, output size cap, audit node per step
-- `app/grants.py`: `GRANTED` edges per agent, `read` / `write` / `destructive`, confirmation token for destructive
-- `app/main.py`: `POST /compare`, `POST /run/{plan_id}`, `GET /trace/{id}`, `GET /metrics`, `GET /catalog`
-- `static/index.html`: two columns, counters, chain strip, result box, read-only toggle
+- `switchboard/matcher.py`: BM25 over tool descriptions, in memory. Returns a
+  goal tool and up to 10 candidates. Pure Python, no dependency, no model
+- `switchboard/planner.py`: the one `algo.MSpaths` call from `TESTING.md`;
+  inline validated candidate keys; score paths by candidate coverage, hop
+  penalty, and edge weight; raise `NoPlan` when empty
+- `switchboard/validator.py`: every consumed type is produced by an earlier
+  step or supplied by the input; return the failing index
+- `switchboard/index.py`: `tools/list` from each configured upstream, derive
+  `FEEDS`, write nodes in one batch, then edges in another, chunked at 1000.
+  Integer ids, label-free `MERGE`, then `SET` the label and key
+- `switchboard plan` CLI output: four tool keys in order, with bindings
+- `switchboard reset`: `docker compose down -v` then `docker compose up -d`,
+  for repeatable runs. Confirm before deleting volumes
 
-Verify: run one task end to end. The fixture writes to a local file. The file exists. Counters show `tools=60` on the left, `tools=4` on the right.
+Store the plan in HydraDB during `find`:
 
-That is G4. If this is not true at H+13, cut B6 and B7.
+```cypher
+MERGE (p:Plan {id: $id})
+SET p.key = $key, p.task = $task, p.hash = $hash, p.wins = 0
+MERGE (p)-[:STEP {i: 0, args: $args0}]->(t:Tool {id: $tool0})
+```
 
-### B6. Evals, H+13 to H+16
+Verify:
+
+```bash
+switchboard index
+switchboard index            # idempotent: same counts, exit 0
+switchboard plan "comment on the failing test issue in acme/api"
+```
+
+prints 4 tools in order. A hand-built bad chain is rejected. Empty graph gives
+`NoPlan`. That is G3.
+
+### B5. Executor and MCP surface, H+8 to H+11
 
 Build:
 
-- `evals/tasks.jsonl`: 24 tasks, 4 families, 6 each (below)
-- `evals/run.py`: 3 reps, median with spread, writes `evals/results/<sha>.json`
-- order-validity checker, shared with the planner validator
-- `--baseline bm25` flag: same candidates in BM25 rank order, no graph
-- `static/evals.html`: one row per family, baseline and Switchboard
+- `switchboard/binder.py`: `$input.*`, `$steps.N.result.*`, and constants only.
+  `KeyError` on anything else
+- `switchboard/executor.py`: upstream `tools/call`, 10 s timeout, output size
+  cap, one JSON log line per step. No shell, no arbitrary SQL
+- `gateway.py`: `find` writes and returns the plan; `run` reads the plan,
+  validates bindings, executes, and updates `FEEDS.weight`
+- Write refusal: if a tool is marked destructive and `--allow-writes` is not
+  set, fail the step before calling upstream. P1, cheap
+- `switchboard serve --http 127.0.0.1:8765`: Streamable HTTP for multiple
+  clients. stdio remains the default
 
-Verify: `python evals/run.py --reps 3` prints a table with order validity for both columns. Switchboard 1.00, baseline under 0.75. If the gap is small, the fixture chains are too easy and you need harder ones, not a better pitch.
+Verify one task end to end. The fixture writes to a local file, the file exists,
+and the gateway log shows four upstream calls and the weight updates.
 
-### B7. Reuse, block, trace, H+16 to H+18
+Baseline vs gateway in OpenCode:
 
-Build: plan persistence, `intent_hash` lookup, `wins` increment, second-run counters, 8 adversarial tasks, `/trace/{id}` page, JSON logs.
+| | Baseline | Gateway |
+|---|---|---|
+| Client config | 4 fixture servers | 1 switchboard server |
+| Tools in context | 60 | 2 |
+| Calls | model picks tools | `find`, `run` |
+| Order source | model | graph path |
 
-Verify: run the same task twice in the UI. Graph calls go 1 to 0. Read-only toggle refuses the write step and the chain strip turns red.
+This is G4. If it is not true at H+11, cut B6 and B7.
 
-### B8. One of two, H+18 to H+20
+### B6. Evals and learning, H+11 to H+15
 
-Pick **scale test** first. `scripts/scale.py` seeds 10,000 tools and 100,000 extra edges into the graph, reruns the planner benchmark, and prints p50/p95 next to the 60-tool numbers. Labelled synthetic.
+Build:
 
-Step memoization only if the scale test is done and the video is not recorded. Box it at 45 minutes. Delete on overrun.
+- `evals/tasks.jsonl`: 24 tasks, 4 families, 6 each
+- `evals/run.py`: 3 reps, median with spread, writes
+  `evals/results/<sha>.json`
+- Order-validity checker, shared with the validator
+- Three modes:
+  - `bm25`: top 4 by description score, no graph order
+  - `uniform`: graph order, all weights 1.0
+  - `learned`: graph order, weights updated by outcomes
+- 5 rounds on a train split, holdout measured after each round
+- Static results table for the landing page
+- `scripts/baseline_tokens.py`: exact tool-schema character and token count from
+  `tools/list`, baseline vs gateway. No model call
 
-### B9. Video and slides, H+20 to H+21
+Verify:
 
-Record at H+20. Not H+23. Beats: counters, run, chain, blocked write, second run, eval table. Three minutes, phone mic is fine, no music.
+```bash
+python evals/run.py --reps 3 --rounds 5
+```
 
-### B10. Ship, H+21 to H+24
+prints order validity, task success, schemas, tokens, and graph calls for
+baseline, uniform, and learned. Learning line rises on the holdout. If it does
+not, the fixture has no ambiguity and the weights have nothing to learn; add
+distractors, do not fake the curve.
 
-README, removal test, eval table, "what is mocked", submission form. Then stop.
+This is G5.
+
+### B7. HTTP, landing, submission, H+15 to H+18
+
+Build:
+
+- `switchboard serve --http` smoke test with two clients at once
+- Static landing page on Vercel: counter table, eval table, Loom embed,
+  install commands, architecture, "what is mocked"
+- Public repo, README first screen, `LICENSE` if needed
+- Loom under 3 minutes, recorded in OpenCode: baseline 60 tools, gateway 2
+  tools, `find` plan, `run` results, eval table
+- Two social posts tagging HydraDB
+
+No serverless HydraDB, no fake web demo, no `/compare`.
+
+This is G6.
 
 ---
 
@@ -181,39 +268,44 @@ README, removal test, eval table, "what is mocked", submission form. Then stop.
 
 ```
 switchboard/
-  compose.yaml       MinIO + HydraDB + app
-  Dockerfile
-  .dockerignore
-  .gitignore
-  app/
-    main.py          routes
-    store.py         HydraGraph client, 6 functions
-    matcher.py       BM25
-    planner.py       one MSpaths call
-    validate.py      order check
-    binder.py        $input / $steps
-    executor.py      calls, grants, audit
-    grants.py
-    metrics.py
-    trace.py
-  catalog/
-    fixture_server.py
-    servers.yaml
-    catalog.json     committed snapshot
+  compose.yaml          MinIO + HydraDB
+  pyproject.toml        console script: switchboard
+  switchboard/
+    cli.py              add, remove, list, index, plan, run, serve, status
+    config.py           ~/.config/switchboard/config.json
+    hydra.py            HTTP client and typed-cell decoder
+    index.py            tools/list -> graph
+    matcher.py          BM25
+    planner.py          one MSpaths call
+    validator.py        order check
+    binder.py           $input / $steps
+    executor.py         upstream calls, timeouts, caps
+    gateway.py          MCPServer, find and run
+  fixtures/
+    common.py           tool table, header parser, result helpers
+    issue_server.py
+    repo_server.py
+    incident_server.py
+    account_server.py
   evals/
     tasks.jsonl
     chain_check.py
     run.py
     results/
-  static/{index,evals,catalog}.html
-  scripts/{probe,seed,reset,plan_cli,scale}.py
-  tests/{unit,contract,integration,e2e}/
+  scripts/
+    probe.py            backend 6/6
+    baseline_tokens.py
+  tests/
+    unit/
+    integration/
+  docs/
+  switchboard.example.json
   .env.example
-  Makefile
   README.md
 ```
 
-If the tree grows past forty files, something is being built that the demo does not need.
+If the tree grows past forty files, something is being built that the demo does
+not need.
 
 ---
 
@@ -228,9 +320,22 @@ Four families, six tasks each. One write per family, at the end.
 | Incident | `search_logs` -> `get_trace` -> `open_ticket` -> `notify_channel` |
 | Account | `find_account` -> `list_orders` -> `get_order` -> `issue_refund` |
 
-Adversarial, 8: ungranted write, destructive without token, unknown tool, injection text inside a tool description, stale plan after a version bump, no matching plan, upstream timeout, oversized output.
+The six G2 tasks are the four canonical chains plus two variants:
 
-Each task record: `task`, `expected_chain`, `expected_values`, `allowed_extras`, `expected_end_state`.
+| Variant | Chain |
+|---|---|
+| Close an issue | `list_issues` -> `get_issue` -> `list_comments` -> `close_issue` |
+| Page on-call | `search_logs` -> `get_trace` -> `find_oncall` -> `page_oncall` |
+
+The variants share a prefix with a canonical chain and end in a different
+terminal tool. That gives the planner a real choice and the weights something
+to learn.
+
+Adversarial, 6 if time: ungranted write, destructive without `--allow-writes`,
+unknown tool, no matching plan, upstream timeout, oversized output.
+
+Each task record: `task`, `expected_chain`, `expected_values`,
+`allowed_extras`, `expected_end_state`.
 
 ---
 
@@ -238,25 +343,29 @@ Each task record: `task`, `expected_chain`, `expected_values`, `allowed_extras`,
 
 | At | If | Cut |
 |---|---|---|
-| H+4 | G1 fails | the project. Switch ideas, not features |
-| H+13 | no working `/compare` | eval UI, trace page, memoization, scale test. Keep counters and one chain |
-| H+16 | no eval table | the LLM baseline. Keep the BM25 baseline, it is one flag |
-| H+18 | behind | adversarial set to 3 tasks, trace page gone, memoization gone |
-| H+20 | anything still broken | stop coding. Record what works |
+| H+5 | G2 fails | the project. Switch ideas, not features |
+| H+11 | no working A/B | eval UI, HTTP daemon, write refusal, reuse. Keep counters and one chain |
+| H+15 | no eval table | learned curve. Keep BM25 and uniform graph, state the result honestly |
+| H+16 | behind | adversarial set, HTTP, plan reuse |
+| H+18 | anything still broken | stop coding. Record what works |
 
-Never cut: the removal test, the eval numbers, the blocked write, honesty about what is mocked.
+Never cut: the removal test, the eval numbers, the BM25 baseline, honesty about
+what is mocked.
 
 ---
 
 ## 6. Submission checklist
 
 - Public repo, README first screen says what it does and shows the counter table
-- Removal test visible: empty graph means `plan()` raises `NoPlan`
+- Removal test visible: empty graph means `find` returns `NoPlan`
 - Eval table with n, reps, and the baseline
 - Video under 3 minutes, unlisted
 - 5 slides: problem, counters, order validity gap, GTM, next
-- Form: name, description, how HydraDB is used (OSS traversal + learned edge weights), repo, video
-- State plainly: fixture server is ours, 60 tools are synthetic, scale test is synthetic, no auth
+- Form: name, description, how HydraDB is used (OSS traversal + learned edge
+  weights), repo, video
+- State plainly: fixtures are ours, 60 tools are synthetic, capability headers
+  are a convention, no auth, no live gateway
+- Track 2: agent context layer, not a hosted app
 
 ---
 
@@ -264,12 +373,21 @@ Never cut: the removal test, the eval numbers, the blocked write, honesty about 
 
 ```bash
 cp .env.example .env
-docker compose up -d --build
-pip install -r requirements.txt
-python scripts/probe.py        # G0
-python evals/chain_check.py    # G1
-python scripts/seed.py         # G2
-# app: http://localhost:18000
-python evals/run.py --reps 3
-make bench
+docker compose up -d
+pip install -e .
+python scripts/probe.py                    # G0, 6/6
+python evals/chain_check.py                # G2
+switchboard add mcp issues -- python -m fixtures.issue_server
+switchboard add mcp repo -- python -m fixtures.repo_server
+switchboard add mcp incident -- python -m fixtures.incident_server
+switchboard add mcp account -- python -m fixtures.account_server
+switchboard index                          # G3
+switchboard plan "comment on the failing test issue in acme/api"
+switchboard serve                          # OpenCode launches this
+python evals/run.py --reps 3 --rounds 5    # G5
 ```
+
+Baseline OpenCode config lives in `evals/harness/baseline/` and points at the
+four fixture servers directly. The gateway config lives in
+`evals/harness/gateway/` and points at `switchboard serve`. Run both from their
+own directories so configs do not overlap.
