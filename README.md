@@ -164,7 +164,7 @@ N MCP servers (fixture, filesystem, git)
 
 ```bash
 cp .env.example .env
-docker compose up -d --build  # HydraDB OSS, MinIO, Switchboard on :8000
+docker compose up -d --build  # HydraDB OSS, MinIO, Switchboard on :18000
 ```
 
 ## Non-goals

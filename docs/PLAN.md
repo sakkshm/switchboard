@@ -36,17 +36,19 @@ G1 is the project. Everything after it is execution.
 Build:
 
 - `compose.yaml`: `minio`, `hydradb`, `switchboard`. MinIO on 19000/19001,
-  HydraDB on 18443/17687/19090, app on 8000. Healthchecks and `depends_on`.
-- `Dockerfile`, `.dockerignore`, `.env.example`, `requirements.txt` (`fastapi`,
-  `uvicorn`, `requests`, `mcp`, `pytest`, `ruff`)
-- `scripts/probe.py`: a small store client with a typed-cell decoder and six
-  checks, printed PASS/FAIL, non-zero exit on any failure
+  HydraDB on 18443/17687/19090, app on 18000 (8000 is taken on this machine).
+  Healthchecks and `depends_on`. The busybox init writes the auth token and
+  chowns the cache volume, because HydraDB runs as uid 10001.
+- `Dockerfile`, `.dockerignore`, `.env.example`, `.gitignore`, `requirements.txt`
+  (`fastapi`, `uvicorn`, `requests`, `mcp`, `pytest`, `ruff`)
+- `app/store.py`: the HTTP client and typed-cell decoder; `scripts/probe.py`:
+  six checks, printed PASS/FAIL, non-zero exit on any failure
 
 The six checks, in this order:
 
 1. `GET http://127.0.0.1:19090/readyz` returns 200
-2. `UNWIND $rows AS row MERGE (n {id: row.id}) SET n:Tool, n.key = row.key, n.name = row.name` with 3 rows; count is 3
-3. Edge batch with 2 rows; rerun leaves the count at 2
+2. `UNWIND $rows AS row MERGE (n {id: row.id}) SET n:Tool, n.key = row.key, n.name = row.name` with 4 rows; count is 4
+3. Edge batch with 3 rows; rerun leaves the count at 3
 4. `algo.MSpaths` returns the 4-tool chain in order
 5. `MERGE (p:Plan {id: 100})-[:STEP {i: 0}]->(t:Tool {id: 1})`; read back with `ORDER BY s.i`
 6. `SET r.weight = $w`, read it back, and see it hydrated in the path result
@@ -182,6 +184,7 @@ switchboard/
   compose.yaml       MinIO + HydraDB + app
   Dockerfile
   .dockerignore
+  .gitignore
   app/
     main.py          routes
     store.py         HydraGraph client, 6 functions
@@ -266,7 +269,7 @@ pip install -r requirements.txt
 python scripts/probe.py        # G0
 python evals/chain_check.py    # G1
 python scripts/seed.py         # G2
-# app: http://localhost:8000
+# app: http://localhost:18000
 python evals/run.py --reps 3
 make bench
 ```
