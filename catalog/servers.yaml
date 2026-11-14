@@ -1,0 +1,22 @@
+{
+  "fixture": {
+    "command": "{python}",
+    "args": ["-m", "catalog.fixture_server"],
+    "cwd": "{root}",
+    "env": {}
+  },
+  "filesystem": {
+    "enabled": false,
+    "command": "{python}",
+    "args": ["-m", "catalog.local_server", "--kind", "filesystem"],
+    "cwd": "{root}",
+    "env": {"SWITCHBOARD_WORKSPACE": ""}
+  },
+  "git": {
+    "enabled": false,
+    "command": "{python}",
+    "args": ["-m", "catalog.local_server", "--kind", "git"],
+    "cwd": "{root}",
+    "env": {"SWITCHBOARD_WORKSPACE": ""}
+  }
+}

@@ -1,0 +1,158 @@
+[
+  {
+    "key": "fs_list",
+    "name": "fs_list",
+    "server": "filesystem",
+    "version": "1",
+    "risk": "read",
+    "description": "List one directory inside the configured workspace, without recursion. [consumes:  | produces: filesystem_entries]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "description": "Path relative to SWITCHBOARD_WORKSPACE; use . for its root."
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true
+    },
+    "consumes": [],
+    "produces": [
+      "filesystem_entries"
+    ],
+    "args": {
+      "path": "$input.directory"
+    },
+    "outputs": {
+      "filesystem_entries": "files"
+    }
+  },
+  {
+    "key": "fs_read",
+    "name": "fs_read",
+    "server": "filesystem",
+    "version": "1",
+    "risk": "read",
+    "description": "Read a UTF-8 file from a workspace directory listing, capped at 48 KiB. [consumes: filesystem_entries | produces: file_content]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "description": "Path relative to SWITCHBOARD_WORKSPACE; use . for its root."
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true
+    },
+    "consumes": [
+      "filesystem_entries"
+    ],
+    "produces": [
+      "file_content"
+    ],
+    "args": {
+      "path": "$steps.0.result.files.0.path"
+    },
+    "outputs": {
+      "file_content": "content"
+    }
+  },
+  {
+    "key": "git_status",
+    "name": "git_status",
+    "server": "git",
+    "version": "1",
+    "risk": "read",
+    "description": "Read the working tree status of a Git repository inside the configured workspace. [consumes:  | produces: git_repository]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "description": "Path relative to SWITCHBOARD_WORKSPACE; use . for its root."
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true
+    },
+    "consumes": [],
+    "produces": [
+      "git_repository"
+    ],
+    "args": {
+      "path": "$input.repository"
+    },
+    "outputs": {
+      "git_repository": "repo"
+    }
+  },
+  {
+    "key": "git_diff",
+    "name": "git_diff",
+    "server": "git",
+    "version": "1",
+    "risk": "read",
+    "description": "Read the unstaged working tree diff of a discovered Git repository. No external diff programs. [consumes: git_repository | produces: git_diff]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "description": "Path relative to SWITCHBOARD_WORKSPACE; use . for its root."
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true
+    },
+    "consumes": [
+      "git_repository"
+    ],
+    "produces": [
+      "git_diff"
+    ],
+    "args": {
+      "path": "$steps.0.result.repo"
+    },
+    "outputs": {
+      "git_diff": "diff"
+    }
+  }
+]

@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.store import Hydra
+from app.store import Hydra  # noqa: E402 -- allow invocation as a standalone script
 
 ADMIN_URL = os.getenv("HYDRADB_ADMIN_URL", "http://127.0.0.1:19090").rstrip("/")
 HYDRA = Hydra()

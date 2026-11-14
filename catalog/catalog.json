@@ -1,0 +1,2445 @@
+[
+  {
+    "key": "repo_search",
+    "name": "repo_search",
+    "server": "fixture",
+    "description": "Find a repository for issue triage and failing tests [consumes:  | produces: repo]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "repo"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.repo"
+    },
+    "outputs": {
+      "repo": "full_name"
+    },
+    "version": "1",
+    "entry": true,
+    "family": "issue",
+    "stage": 0,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "list_issues",
+    "name": "list_issues",
+    "server": "fixture",
+    "description": "List open failing test issues in a repository [consumes: repo | produces: issue_number]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "repo"
+    ],
+    "produces": [
+      "issue_number"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "repo": "$steps.0.result.full_name"
+    },
+    "outputs": {
+      "issue_number": "0.number"
+    },
+    "version": "1",
+    "entry": false,
+    "family": "issue",
+    "stage": 1,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "get_issue",
+    "name": "get_issue",
+    "server": "fixture",
+    "description": "Read a failing test issue by repository and issue number [consumes: repo,issue_number | produces: issue]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string"
+        },
+        "number": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "repo",
+        "number"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "repo",
+      "issue_number"
+    ],
+    "produces": [
+      "issue"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "repo": "$steps.0.result.full_name",
+      "number": "$steps.1.result.0.number"
+    },
+    "outputs": {
+      "issue": "number"
+    },
+    "version": "1",
+    "entry": false,
+    "family": "issue",
+    "stage": 2,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "add_comment",
+    "name": "add_comment",
+    "server": "fixture",
+    "description": "Comment on the failing test issue; add a comment or reply to an issue in a repository [consumes: repo,issue | produces: comment]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string"
+        },
+        "number": {
+          "type": "integer"
+        },
+        "body": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo",
+        "number",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "repo",
+      "issue"
+    ],
+    "produces": [
+      "comment"
+    ],
+    "risk": "write",
+    "writes": true,
+    "args": {
+      "repo": "$steps.0.result.full_name",
+      "number": "$steps.2.result.number",
+      "body": "$input.message"
+    },
+    "outputs": {
+      "comment": "id"
+    },
+    "version": "1",
+    "entry": false,
+    "family": "issue",
+    "stage": 3,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "list_archived_issues",
+    "name": "list_archived_issues",
+    "server": "fixture",
+    "description": "List open failing test issues in a repository from an archived stale snapshot [consumes: repo | produces: issue_number]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "repo"
+    ],
+    "produces": [
+      "issue_number"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "repo": "$steps.0.result.full_name"
+    },
+    "outputs": {
+      "issue_number": "0.number"
+    },
+    "version": "1",
+    "entry": false,
+    "family": "issue",
+    "stage": 1,
+    "distractor": true,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "list_cached_issues",
+    "name": "list_cached_issues",
+    "server": "fixture",
+    "description": "List open failing test issues in a repository from an archived stale snapshot [consumes: repo | produces: issue_number]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "repo"
+    ],
+    "produces": [
+      "issue_number"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "repo": "$steps.0.result.full_name"
+    },
+    "outputs": {
+      "issue_number": "0.number"
+    },
+    "version": "1",
+    "entry": false,
+    "family": "issue",
+    "stage": 1,
+    "distractor": true,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "search_releases",
+    "name": "search_releases",
+    "server": "fixture",
+    "description": "Search releases in the synthetic issue service [consumes:  | produces: issue_extra_0]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "issue_extra_0"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": true,
+    "family": "issue",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_release",
+    "name": "read_release",
+    "server": "fixture",
+    "description": "Read release in the synthetic issue service [consumes: issue_extra_0 | produces: issue_extra_1]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "issue_extra_0"
+    ],
+    "produces": [
+      "issue_extra_1"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": false,
+    "family": "issue",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "list_milestones",
+    "name": "list_milestones",
+    "server": "fixture",
+    "description": "List milestones in the synthetic issue service [consumes:  | produces: issue_extra_2]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "issue_extra_2"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": true,
+    "family": "issue",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_milestone",
+    "name": "read_milestone",
+    "server": "fixture",
+    "description": "Read milestone in the synthetic issue service [consumes: issue_extra_2 | produces: issue_extra_3]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "issue_extra_2"
+    ],
+    "produces": [
+      "issue_extra_3"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": false,
+    "family": "issue",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "list_labels",
+    "name": "list_labels",
+    "server": "fixture",
+    "description": "List labels in the synthetic issue service [consumes:  | produces: issue_extra_4]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "issue_extra_4"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": true,
+    "family": "issue",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_label",
+    "name": "read_label",
+    "server": "fixture",
+    "description": "Read label in the synthetic issue service [consumes: issue_extra_4 | produces: issue_extra_5]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "issue_extra_4"
+    ],
+    "produces": [
+      "issue_extra_5"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": false,
+    "family": "issue",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_repository_stats",
+    "name": "read_repository_stats",
+    "server": "fixture",
+    "description": "Read repository stats in the synthetic issue service [consumes:  | produces: issue_extra_6]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "issue_extra_6"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": true,
+    "family": "issue",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_contributors",
+    "name": "read_contributors",
+    "server": "fixture",
+    "description": "Read contributors in the synthetic issue service [consumes: issue_extra_6 | produces: issue_extra_7]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "issue_extra_6"
+    ],
+    "produces": [
+      "issue_extra_7"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": false,
+    "family": "issue",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "delete_repository",
+    "name": "delete_repository",
+    "server": "fixture",
+    "description": "Delete repository in the synthetic issue service [consumes:  | produces: issue_extra_8]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "issue_extra_8"
+    ],
+    "risk": "destructive",
+    "writes": true,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": true,
+    "family": "issue",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "locate_file",
+    "name": "locate_file",
+    "server": "fixture",
+    "description": "Locate a source file for code review and authentication changes [consumes:  | produces: file_path]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "file_path"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.path"
+    },
+    "outputs": {
+      "file_path": "path"
+    },
+    "version": "1",
+    "entry": true,
+    "family": "review",
+    "stage": 0,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_file",
+    "name": "read_file",
+    "server": "fixture",
+    "description": "Read source file content for a code review [consumes: file_path | produces: file_content]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "file_path"
+    ],
+    "produces": [
+      "file_content"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "path": "$steps.0.result.path"
+    },
+    "outputs": {
+      "file_content": "content"
+    },
+    "version": "1",
+    "entry": false,
+    "family": "review",
+    "stage": 1,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "get_diff",
+    "name": "get_diff",
+    "server": "fixture",
+    "description": "Get the code change diff from source content and file path [consumes: file_path,file_content | produces: diff]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "content"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "file_path",
+      "file_content"
+    ],
+    "produces": [
+      "diff"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "path": "$steps.0.result.path",
+      "content": "$steps.1.result.content"
+    },
+    "outputs": {
+      "diff": "diff"
+    },
+    "version": "1",
+    "entry": false,
+    "family": "review",
+    "stage": 2,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "post_review",
+    "name": "post_review",
+    "server": "fixture",
+    "description": "Post a code review for the authentication diff; submit review feedback on a code change [consumes: diff | produces: review]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "diff": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "diff",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "diff"
+    ],
+    "produces": [
+      "review"
+    ],
+    "risk": "write",
+    "writes": true,
+    "args": {
+      "diff": "$steps.2.result.diff",
+      "body": "$input.message"
+    },
+    "outputs": {
+      "review": "id"
+    },
+    "version": "1",
+    "entry": false,
+    "family": "review",
+    "stage": 3,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_cached_file",
+    "name": "read_cached_file",
+    "server": "fixture",
+    "description": "Read source file content for a code review from an archived stale snapshot [consumes: file_path | produces: file_content]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "file_path"
+    ],
+    "produces": [
+      "file_content"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "path": "$steps.0.result.path"
+    },
+    "outputs": {
+      "file_content": "content"
+    },
+    "version": "1",
+    "entry": false,
+    "family": "review",
+    "stage": 1,
+    "distractor": true,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_old_file",
+    "name": "read_old_file",
+    "server": "fixture",
+    "description": "Read source file content for a code review from an archived stale snapshot [consumes: file_path | produces: file_content]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "file_path"
+    ],
+    "produces": [
+      "file_content"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "path": "$steps.0.result.path"
+    },
+    "outputs": {
+      "file_content": "content"
+    },
+    "version": "1",
+    "entry": false,
+    "family": "review",
+    "stage": 1,
+    "distractor": true,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "list_branches",
+    "name": "list_branches",
+    "server": "fixture",
+    "description": "List branches in the synthetic review service [consumes:  | produces: review_extra_0]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "review_extra_0"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": true,
+    "family": "review",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_branch",
+    "name": "read_branch",
+    "server": "fixture",
+    "description": "Read branch in the synthetic review service [consumes: review_extra_0 | produces: review_extra_1]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "review_extra_0"
+    ],
+    "produces": [
+      "review_extra_1"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": false,
+    "family": "review",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "list_tags",
+    "name": "list_tags",
+    "server": "fixture",
+    "description": "List tags in the synthetic review service [consumes:  | produces: review_extra_2]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "review_extra_2"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": true,
+    "family": "review",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_tag",
+    "name": "read_tag",
+    "server": "fixture",
+    "description": "Read tag in the synthetic review service [consumes: review_extra_2 | produces: review_extra_3]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "review_extra_2"
+    ],
+    "produces": [
+      "review_extra_3"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": false,
+    "family": "review",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "list_commits",
+    "name": "list_commits",
+    "server": "fixture",
+    "description": "List commits in the synthetic review service [consumes:  | produces: review_extra_4]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "review_extra_4"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": true,
+    "family": "review",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_commit",
+    "name": "read_commit",
+    "server": "fixture",
+    "description": "Read commit in the synthetic review service [consumes: review_extra_4 | produces: review_extra_5]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "review_extra_4"
+    ],
+    "produces": [
+      "review_extra_5"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": false,
+    "family": "review",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_build_status",
+    "name": "read_build_status",
+    "server": "fixture",
+    "description": "Read build status in the synthetic review service [consumes:  | produces: review_extra_6]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "review_extra_6"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": true,
+    "family": "review",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_language_stats",
+    "name": "read_language_stats",
+    "server": "fixture",
+    "description": "Read language stats in the synthetic review service [consumes: review_extra_6 | produces: review_extra_7]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "review_extra_6"
+    ],
+    "produces": [
+      "review_extra_7"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": false,
+    "family": "review",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "delete_branch",
+    "name": "delete_branch",
+    "server": "fixture",
+    "description": "Delete branch in the synthetic review service [consumes:  | produces: review_extra_8]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "review_extra_8"
+    ],
+    "risk": "destructive",
+    "writes": true,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": true,
+    "family": "review",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "search_logs",
+    "name": "search_logs",
+    "server": "fixture",
+    "description": "Search error logs for a service incident [consumes:  | produces: trace_id]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "service": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "service"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "trace_id"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "service": "$input.service"
+    },
+    "outputs": {
+      "trace_id": "trace_id"
+    },
+    "version": "1",
+    "entry": true,
+    "family": "incident",
+    "stage": 0,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "get_trace",
+    "name": "get_trace",
+    "server": "fixture",
+    "description": "Read the trace of a service error and summarize the incident [consumes: trace_id | produces: trace]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "trace_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "trace_id"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "trace_id"
+    ],
+    "produces": [
+      "trace"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "trace_id": "$steps.0.result.trace_id"
+    },
+    "outputs": {
+      "trace": "summary"
+    },
+    "version": "1",
+    "entry": false,
+    "family": "incident",
+    "stage": 1,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "open_ticket",
+    "name": "open_ticket",
+    "server": "fixture",
+    "description": "Prepare an incident ticket draft from the error trace; no external write [consumes: trace | produces: ticket]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "summary"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "trace"
+    ],
+    "produces": [
+      "ticket"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "summary": "$steps.1.result.summary"
+    },
+    "outputs": {
+      "ticket": "ticket_id"
+    },
+    "version": "1",
+    "entry": false,
+    "family": "incident",
+    "stage": 2,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "notify_channel",
+    "name": "notify_channel",
+    "server": "fixture",
+    "description": "Notify the incident channel about the checkout error; send an incident notification to the channel [consumes: ticket | produces: notification]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ticket_id": {
+          "type": "string"
+        },
+        "channel": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ticket_id",
+        "channel",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "ticket"
+    ],
+    "produces": [
+      "notification"
+    ],
+    "risk": "write",
+    "writes": true,
+    "args": {
+      "ticket_id": "$steps.2.result.ticket_id",
+      "channel": "$input.channel",
+      "body": "$input.message"
+    },
+    "outputs": {
+      "notification": "id"
+    },
+    "version": "1",
+    "entry": false,
+    "family": "incident",
+    "stage": 3,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "get_cached_trace",
+    "name": "get_cached_trace",
+    "server": "fixture",
+    "description": "Read the trace of a service error and summarize the incident from an archived stale snapshot [consumes: trace_id | produces: trace]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "trace_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "trace_id"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "trace_id"
+    ],
+    "produces": [
+      "trace"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "trace_id": "$steps.0.result.trace_id"
+    },
+    "outputs": {
+      "trace": "summary"
+    },
+    "version": "1",
+    "entry": false,
+    "family": "incident",
+    "stage": 1,
+    "distractor": true,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "get_archived_trace",
+    "name": "get_archived_trace",
+    "server": "fixture",
+    "description": "Read the trace of a service error and summarize the incident from an archived stale snapshot [consumes: trace_id | produces: trace]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "trace_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "trace_id"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "trace_id"
+    ],
+    "produces": [
+      "trace"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "trace_id": "$steps.0.result.trace_id"
+    },
+    "outputs": {
+      "trace": "summary"
+    },
+    "version": "1",
+    "entry": false,
+    "family": "incident",
+    "stage": 1,
+    "distractor": true,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "list_services",
+    "name": "list_services",
+    "server": "fixture",
+    "description": "List services in the synthetic incident service [consumes:  | produces: incident_extra_0]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "incident_extra_0"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": true,
+    "family": "incident",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_service",
+    "name": "read_service",
+    "server": "fixture",
+    "description": "Read service in the synthetic incident service [consumes: incident_extra_0 | produces: incident_extra_1]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "incident_extra_0"
+    ],
+    "produces": [
+      "incident_extra_1"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": false,
+    "family": "incident",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "list_deployments",
+    "name": "list_deployments",
+    "server": "fixture",
+    "description": "List deployments in the synthetic incident service [consumes:  | produces: incident_extra_2]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "incident_extra_2"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": true,
+    "family": "incident",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_deployment",
+    "name": "read_deployment",
+    "server": "fixture",
+    "description": "Read deployment in the synthetic incident service [consumes: incident_extra_2 | produces: incident_extra_3]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "incident_extra_2"
+    ],
+    "produces": [
+      "incident_extra_3"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": false,
+    "family": "incident",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "list_alert_rules",
+    "name": "list_alert_rules",
+    "server": "fixture",
+    "description": "List alert rules in the synthetic incident service [consumes:  | produces: incident_extra_4]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "incident_extra_4"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": true,
+    "family": "incident",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_alert_rule",
+    "name": "read_alert_rule",
+    "server": "fixture",
+    "description": "Read alert rule in the synthetic incident service [consumes: incident_extra_4 | produces: incident_extra_5]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "incident_extra_4"
+    ],
+    "produces": [
+      "incident_extra_5"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": false,
+    "family": "incident",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_uptime",
+    "name": "read_uptime",
+    "server": "fixture",
+    "description": "Read uptime in the synthetic incident service [consumes:  | produces: incident_extra_6]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "incident_extra_6"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": true,
+    "family": "incident",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_error_budget",
+    "name": "read_error_budget",
+    "server": "fixture",
+    "description": "Read error budget in the synthetic incident service [consumes: incident_extra_6 | produces: incident_extra_7]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "incident_extra_6"
+    ],
+    "produces": [
+      "incident_extra_7"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": false,
+    "family": "incident",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "delete_logs",
+    "name": "delete_logs",
+    "server": "fixture",
+    "description": "Delete logs in the synthetic incident service [consumes:  | produces: incident_extra_8]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "incident_extra_8"
+    ],
+    "risk": "destructive",
+    "writes": true,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": true,
+    "family": "incident",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "find_account",
+    "name": "find_account",
+    "server": "fixture",
+    "description": "Find a customer account for order support [consumes:  | produces: account_id]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "account_id"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.account"
+    },
+    "outputs": {
+      "account_id": "account_id"
+    },
+    "version": "1",
+    "entry": true,
+    "family": "account",
+    "stage": 0,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "list_orders",
+    "name": "list_orders",
+    "server": "fixture",
+    "description": "List the latest orders belonging to a customer account [consumes: account_id | produces: order_id]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "account_id"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "account_id"
+    ],
+    "produces": [
+      "order_id"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "account_id": "$steps.0.result.account_id"
+    },
+    "outputs": {
+      "order_id": "0.order_id"
+    },
+    "version": "1",
+    "entry": false,
+    "family": "account",
+    "stage": 1,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "get_order",
+    "name": "get_order",
+    "server": "fixture",
+    "description": "Read details and amount of a customer order [consumes: order_id | produces: order]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "order_id"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "order_id"
+    ],
+    "produces": [
+      "order"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "order_id": "$steps.1.result.0.order_id"
+    },
+    "outputs": {
+      "order": "order_id"
+    },
+    "version": "1",
+    "entry": false,
+    "family": "account",
+    "stage": 2,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "issue_refund",
+    "name": "issue_refund",
+    "server": "fixture",
+    "description": "Issue a refund for the latest account order; refund a duplicate customer order [consumes: order | produces: refund]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "order_id",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "order"
+    ],
+    "produces": [
+      "refund"
+    ],
+    "risk": "destructive",
+    "writes": true,
+    "args": {
+      "order_id": "$steps.2.result.order_id",
+      "reason": "$input.reason"
+    },
+    "outputs": {
+      "refund": "id"
+    },
+    "version": "1",
+    "entry": false,
+    "family": "account",
+    "stage": 3,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "list_archived_orders",
+    "name": "list_archived_orders",
+    "server": "fixture",
+    "description": "List the latest orders belonging to a customer account from an archived stale snapshot [consumes: account_id | produces: order_id]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "account_id"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "account_id"
+    ],
+    "produces": [
+      "order_id"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "account_id": "$steps.0.result.account_id"
+    },
+    "outputs": {
+      "order_id": "0.order_id"
+    },
+    "version": "1",
+    "entry": false,
+    "family": "account",
+    "stage": 1,
+    "distractor": true,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "list_cached_orders",
+    "name": "list_cached_orders",
+    "server": "fixture",
+    "description": "List the latest orders belonging to a customer account from an archived stale snapshot [consumes: account_id | produces: order_id]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "account_id"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "account_id"
+    ],
+    "produces": [
+      "order_id"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "account_id": "$steps.0.result.account_id"
+    },
+    "outputs": {
+      "order_id": "0.order_id"
+    },
+    "version": "1",
+    "entry": false,
+    "family": "account",
+    "stage": 1,
+    "distractor": true,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "list_products",
+    "name": "list_products",
+    "server": "fixture",
+    "description": "List products in the synthetic account service [consumes:  | produces: account_extra_0]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "account_extra_0"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": true,
+    "family": "account",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_product",
+    "name": "read_product",
+    "server": "fixture",
+    "description": "Read product in the synthetic account service [consumes: account_extra_0 | produces: account_extra_1]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "account_extra_0"
+    ],
+    "produces": [
+      "account_extra_1"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": false,
+    "family": "account",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "list_invoices",
+    "name": "list_invoices",
+    "server": "fixture",
+    "description": "List invoices in the synthetic account service [consumes:  | produces: account_extra_2]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "account_extra_2"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": true,
+    "family": "account",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_invoice",
+    "name": "read_invoice",
+    "server": "fixture",
+    "description": "Read invoice in the synthetic account service [consumes: account_extra_2 | produces: account_extra_3]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "account_extra_2"
+    ],
+    "produces": [
+      "account_extra_3"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": false,
+    "family": "account",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "list_subscriptions",
+    "name": "list_subscriptions",
+    "server": "fixture",
+    "description": "List subscriptions in the synthetic account service [consumes:  | produces: account_extra_4]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "account_extra_4"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": true,
+    "family": "account",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_subscription",
+    "name": "read_subscription",
+    "server": "fixture",
+    "description": "Read subscription in the synthetic account service [consumes: account_extra_4 | produces: account_extra_5]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "account_extra_4"
+    ],
+    "produces": [
+      "account_extra_5"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": false,
+    "family": "account",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_account_settings",
+    "name": "read_account_settings",
+    "server": "fixture",
+    "description": "Read account settings in the synthetic account service [consumes:  | produces: account_extra_6]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "account_extra_6"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": true,
+    "family": "account",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "read_payment_methods",
+    "name": "read_payment_methods",
+    "server": "fixture",
+    "description": "Read payment methods in the synthetic account service [consumes: account_extra_6 | produces: account_extra_7]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [
+      "account_extra_6"
+    ],
+    "produces": [
+      "account_extra_7"
+    ],
+    "risk": "read",
+    "writes": false,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": false,
+    "family": "account",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "key": "delete_account",
+    "name": "delete_account",
+    "server": "fixture",
+    "description": "Delete account in the synthetic account service [consumes:  | produces: account_extra_8]",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "consumes": [],
+    "produces": [
+      "account_extra_8"
+    ],
+    "risk": "destructive",
+    "writes": true,
+    "args": {
+      "query": "$input.query"
+    },
+    "outputs": {},
+    "version": "1",
+    "entry": true,
+    "family": "account",
+    "stage": 4,
+    "distractor": false,
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
+    }
+  }
+]

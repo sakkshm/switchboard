@@ -1,5 +1,9 @@
 # Switchboard
 
+> Review checkpoint: the implementation is being aligned with the new universal
+> gateway specification in `45e7db2`. See [implementation status](docs/IMPLEMENTATION.md)
+> for working components, measured evidence, and the remaining integration work.
+
 One MCP gateway for every tool. The agent asks for a task and gets a four-step
 plan, not a sixty-tool catalog.
 

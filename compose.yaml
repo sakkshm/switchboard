@@ -2,7 +2,11 @@ name: switchboard
 
 services:
   minio:
-    image: minio/minio:latest
+    image: switchboard-minio:2025-10-15
+    build:
+      context: .
+      dockerfile: Dockerfile.minio
+      target: minio
     command: server /data --console-address ":9001"
     ports:
       - "19000:9000"
@@ -13,14 +17,18 @@ services:
     volumes:
       - minio-data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9000/minio/health/live"]
       interval: 5s
       timeout: 3s
       retries: 20
       start_period: 5s
 
   minio-init:
-    image: minio/mc:latest
+    image: switchboard-mc:2025-08-13
+    build:
+      context: .
+      dockerfile: Dockerfile.minio
+      target: mc
     depends_on:
       minio:
         condition: service_healthy
@@ -45,7 +53,7 @@ services:
       - hydradb-cache:/cache
 
   hydradb:
-    image: ghcr.io/hydra-db/hydradb:latest
+    image: ghcr.io/hydra-db/hydradb@sha256:ab71d651fefee13ebb23eb56d72316065bdca563ff7587442e07be663f2bf880
     ports:
       - "18443:8443"
       - "17687:7687"
@@ -94,6 +102,9 @@ services:
 
   switchboard:
     build: .
+    volumes:
+      - switchboard-data:/app/.data
+      - ./evals/results:/app/evals/results
     ports:
       - "18000:8000"
     environment:
@@ -101,6 +112,12 @@ services:
       HYDRADB_ADMIN_URL: http://hydradb:9090
       HYDRADB_TOKEN: ${HYDRADB_TOKEN:-local-development-token-32-bytes}
       HYDRADB_GRAPH: default
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     depends_on:
       hydradb:
         condition: service_healthy
@@ -109,3 +126,4 @@ volumes:
   minio-data:
   hydradb-cache:
   hydradb-auth:
+  switchboard-data:
