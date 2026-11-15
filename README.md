@@ -350,6 +350,19 @@ Entity resolution, cross-source identity, agent frameworks, a vector database,
 graph visualisation, auth, SSO, multi-tenant isolation, autoscaling, Kubernetes.
 Each one is a product on its own and none of them makes the demo better.
 
+## Landing page
+
+The static landing page is built into `site/`, with React/TypeScript source in
+`frontend/`. To develop it, run `npm ci` then `npm run dev` inside `frontend/`.
+Run `npm test` and `npm run build` before committing source and generated output.
+For a production preview from the repository root:
+
+```bash
+python -m http.server 8080 --directory site
+```
+
+See `frontend/README.md` for the build and artwork details.
+
 ## Docs
 
 - `docs/E2E.md`: end-to-end runbook, every feature with expected output
