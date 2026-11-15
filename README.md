@@ -62,6 +62,19 @@ flowchart LR
 | Learned graph, round 1 | 1.00 | 1.00 |
 | Learned graph, round 5 | 1.00 | 1.00 |
 
+## How HydraDB is used
+
+The graph is the product, not a cache. Tools are nodes, dependencies are
+weighted edges, plans are stored back into the same graph:
+
+- `(:Tool)-[:FEEDS {weight}]->(:Tool)` - tool B consumes a type tool A produces.
+- `(:Plan)-[:STEP]->(:Tool)` - the executed plan, for replay and audit.
+- One `MSpaths` traversal per plan (max 6 hops) finds the route to the goal tool.
+- A successful run adds 0.2 to each used edge; a failed step subtracts 0.2.
+
+One HTTP call per query (`POST /v1/graphs/default/query`), via the small
+client in `switchboard/hydra.py`.
+
 ## Quick start
 
 ```bash
