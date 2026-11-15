@@ -123,7 +123,9 @@ Config lives in `~/.config/switchboard/config.json`. It contains upstream
 commands and URLs, not a tool catalog. Tools are discovered at `index` and at
 server startup. Secrets in headers stay as `{env:NAME}` references.
 
-OpenCode client config for the stdio gateway:
+OpenCode client config for the stdio gateway. The tested variant is
+`evals/harness/gateway/opencode.json`: copy it to the repo root as
+`opencode.json` so OpenCode picks it up from the git root.
 
 ```json
 {
