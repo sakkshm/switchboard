@@ -8,5 +8,5 @@ export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   server: { fs: { allow: [fileURLToPath(new URL(".", import.meta.url))] } },
   base: "./",
-  build: { outDir: "../site", emptyOutDir: true, assetsInlineLimit: 0 },
+  build: { outDir: "dist", emptyOutDir: true, assetsInlineLimit: 0 },
 })

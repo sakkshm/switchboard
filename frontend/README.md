@@ -1,6 +1,7 @@
 # Switchboard landing page
 
-React, TypeScript and Vite source for the static landing page at `site/`.
+React, TypeScript and Vite source for the static landing page. The production
+build lands in `frontend/dist/` (Vercel's default output directory).
 The page uses black and white dithered artwork with a small orange brand accent.
 It describes the gateway on `main`; it does not call a backend or execute tools.
 
@@ -16,9 +17,9 @@ npm test
 npm run build
 ```
 
-The production build replaces the generated `../site/` directory. Commit both
-`frontend/` and `site/` when changing the page. Serve `site/` with a static server,
-for example `python -m http.server 8080 --directory site` from the repository root.
+The production build lands in `frontend/dist/`. Serve it with a static server,
+for example `python -m http.server 8080 --directory frontend/dist` from the
+repository root.
 Assets use relative URLs so the build also works under a hosting subdirectory.
 
 The setup dialog provides macOS/Linux and Windows commands for the current
