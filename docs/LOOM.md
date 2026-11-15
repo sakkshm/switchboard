@@ -63,6 +63,7 @@ Expected:
 
 ```
 indexed 46 tools, 0 FEEDS edges
+no tool declares consumes/produces; run switchboard annotate --infer
 fetch.fetch  consumes=[] produces=[]
 ```
 

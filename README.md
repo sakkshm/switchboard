@@ -112,29 +112,34 @@ docker compose up -d                 # HydraDB OSS 0.4.0 + MinIO
 
 python -m venv .venv
 .venv/bin/pip install -e ".[dev]"    # use the venv's pip, not the system one
-.venv/bin/switchboard status         # HydraDB ready=True
+. .venv/bin/activate                 # bare `switchboard` from here on
+switchboard status                   # HydraDB ready=True
 
-.venv/bin/switchboard add mcp issue -- python -m tests.fixtures.issue_server
-.venv/bin/switchboard add mcp repo -- python -m tests.fixtures.repo_server
-.venv/bin/switchboard add mcp incident -- python -m tests.fixtures.incident_server
-.venv/bin/switchboard add mcp account -- python -m tests.fixtures.account_server
+switchboard add mcp issue -- python -m tests.fixtures.issue_server
+switchboard add mcp repo -- python -m tests.fixtures.repo_server
+switchboard add mcp incident -- python -m tests.fixtures.incident_server
+switchboard add mcp account -- python -m tests.fixtures.account_server
 
-.venv/bin/switchboard list
-.venv/bin/switchboard index
-.venv/bin/switchboard plan "comment on the failing test issue in acme/api" \
+switchboard list
+switchboard index
+switchboard plan "comment on the failing test issue in acme/api" \
   --input repo=acme/api --input message=reproduced
-.venv/bin/switchboard serve                    # stdio, one client
-.venv/bin/switchboard serve --http 127.0.0.1:8765   # daemon, many clients
+switchboard serve                    # stdio, one client
+switchboard serve --http 127.0.0.1:8765   # daemon, many clients
 ```
 
-Or activate the venv first (`. .venv/bin/activate`) and drop the `.venv/bin/`
-prefix. Calling the venv's pip by path always works, so it is the safe form.
+No venv on your PATH? Either activate it (`. .venv/bin/activate`), or link the
+one command out:
+
+```bash
+ln -s "$PWD/.venv/bin/switchboard" ~/.local/bin/switchboard
+```
 
 Two install traps:
 
 - `pip install -e ".[dev]"` with the **system** pip fails on Debian/Ubuntu with
   `error: externally-managed-environment` (PEP 668). That means the venv is not
-  active - use `.venv/bin/pip`.
+  active - use `.venv/bin/pip`, or `pipx install -e .` / `uv tool install -e .`.
 - Do **not** run `pip install switchboard`. That name on PyPI is an unrelated
   package (a Pyramid feature flipper). This project is installed from the repo,
   with `-e`.

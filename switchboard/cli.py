@@ -3,7 +3,6 @@
 import argparse
 import asyncio
 import json
-import os
 import sys
 from collections import Counter
 
@@ -100,10 +99,10 @@ def index_command(_args):
     except Exception as exc:
         return fail(str(exc))
     nodes, edges = index.write(Hydra.from_config(current), tools)
-    headerless = [tool["key"] for tool in tools if not tool["consumes"] and not tool["produces"]]
+    typed = sum(1 for tool in tools if tool["consumes"] or tool["produces"])
     print(f"indexed {nodes} tools, {edges} FEEDS edges")
-    if headerless:
-        print(f"{len(headerless)} tools have no capability header: {', '.join(headerless[:5])}")
+    if not typed:
+        print("no tool declares consumes/produces; run switchboard annotate --infer")
     return 0
 
 
@@ -262,21 +261,23 @@ def serve_command(args):
     return 0
 
 
+def reason(exc):
+    """One short line for a failed call, without requests' multi-line pool text."""
+    return " ".join(str(exc).split())[:200]
+
+
 def status_command(_args):
     current = config.load()
     hydra = Hydra.from_config(current)
-    admin = os.getenv("HYDRADB_ADMIN_URL", "http://127.0.0.1:19090").rstrip("/")
-    try:
-        ready = requests.get(f"{admin}/readyz", timeout=2).status_code == 200
-    except requests.RequestException:
-        ready = False
-    print(f"HydraDB {hydra.url}  ready={ready}")
+    # readiness is the store the gateway actually talks to, not the admin port
     try:
         tools = hydra.scalar("MATCH (t:Tool) RETURN count(*) AS n")
         edges = hydra.scalar("MATCH ()-[r:FEEDS]->() RETURN count(*) AS n")
         plans = hydra.scalar("MATCH (p:Plan) RETURN count(*) AS n")
     except Exception as exc:
-        return fail(str(exc))
+        print(f"HydraDB {hydra.url}  ready=False")
+        return fail(f"cannot reach the graph store: {reason(exc)}")
+    print(f"HydraDB {hydra.url}  ready=True")
     print(f"servers={len(current['servers'])} tools={tools} edges={edges} plans={plans}")
     return 0
 
@@ -352,4 +353,8 @@ def main(argv=None):
     try:
         return args.handler(args)
     except ValueError as exc:
+        return fail(str(exc))
+    except requests.RequestException as exc:
+        return fail(f"cannot reach HydraDB: {reason(exc)}")
+    except RuntimeError as exc:
         return fail(str(exc))

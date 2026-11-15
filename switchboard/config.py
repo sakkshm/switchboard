@@ -25,7 +25,12 @@ ENV_REF = re.compile(r"^\{env:([A-Za-z_][A-Za-z0-9_]*)\}$")
 def load():
     if not CONFIG_PATH.exists():
         return copy.deepcopy(DEFAULTS)
-    config = json.loads(CONFIG_PATH.read_text())
+    try:
+        config = json.loads(CONFIG_PATH.read_text())
+    except ValueError as exc:
+        raise ValueError(f"{CONFIG_PATH} is not valid JSON: {exc}") from exc
+    if not isinstance(config, dict):
+        raise ValueError(f"{CONFIG_PATH} must be a JSON object")
     for key, value in DEFAULTS.items():
         config.setdefault(key, copy.deepcopy(value))
     return config
