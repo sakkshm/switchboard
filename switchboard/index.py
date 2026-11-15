@@ -22,13 +22,23 @@ def parse_capabilities(description):
     return split(match.group(1)), split(match.group(2))
 
 
+def capabilities(tool, override=None):
+    """Header wins, then config annotations. MCP has no dependency types."""
+    consumes, produces = parse_capabilities(tool.description)
+    if consumes or produces:
+        return consumes, produces
+    override = override or {}
+    return override.get("consumes", []), override.get("produces", [])
+
+
 async def _discover(servers):
     tools = []
     for name, server in servers.items():
         if "." in name:
             raise ValueError(f"server name cannot contain a dot: {name}")
+        overrides = server.get("capabilities", {})
         for tool in await list_tools(server):
-            consumes, produces = parse_capabilities(tool.description)
+            consumes, produces = capabilities(tool, overrides.get(tool.name))
             key = f"{name}.{tool.name}"
             tools.append(
                 {

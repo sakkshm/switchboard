@@ -67,7 +67,24 @@ def choose(paths, candidates, uniform=False):
         for (coverage, weight, length), path in scored
         if coverage >= best - 1
     ]
-    return max(shortlist, key=lambda item: (item[0], item[1], item[2]))[3]
+    return max(shortlist, key=lambda item: item[:3])[3]
+
+
+def fallback_path(hydra, tools, ranked):
+    """No route to the top goal: take the route whose first tool ranks best."""
+    ranks = {tool["key"]: index for index, tool in enumerate(ranked)}
+    best = None
+    for target in ranked[:20]:
+        if not target["consumes"]:
+            continue
+        goal = target["key"]
+        for path in fetch_paths(hydra, [key for key in tools if key != goal], goal):
+            rank = ranks.get(path["nodes"][0]["properties"]["key"], len(ranks))
+            if best is None or rank < best[0]:
+                best = (rank, path)
+    if best is None:
+        raise NoPlan(f"no FEEDS path from a ranked tool to {ranked[0]['key']}")
+    return best[1]
 
 
 def save(hydra, plan_id, task, steps):
@@ -110,11 +127,10 @@ def make(hydra, task, supplied=None, uniform=False):
         raise NoPlan("the graph has only one tool")
 
     paths = fetch_paths(hydra, sources, goal)
-    if not paths:
-        raise NoPlan(f"no FEEDS path to {goal}")
-
-    path = choose(paths, candidates, uniform)
+    path = choose(paths, candidates, uniform) if paths else fallback_path(hydra, tools, ranked)
     chain = [node["properties"]["key"] for node in path["nodes"]]
+    goal = chain[-1]
+
     steps, required = binder.bind(tools, chain)
     error = validator.check(steps, tools)
     if error:

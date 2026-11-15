@@ -153,6 +153,42 @@ which is where the context cost actually lives, and the live OpenCode session
 proves the gateway path only. The learning curve measures the planner, not a
 model choosing among 60 tools. Do not present it as the latter.
 
+## Real servers, no fixtures
+
+Everything above uses four synthetic fixture servers. The same code path was
+also run against three real MCP servers with no fixture and no mock, on
+2026-11-15:
+
+| Server | Launch | Tools |
+|---|---|---|
+| `filesystem` | `npx -y @modelcontextprotocol/server-filesystem /tmp/opencode/real-demo` | 16 |
+| `fetch` | `uvx mcp-server-fetch` | 1 |
+| `github` | `docker run -i --rm ... ghcr.io/github/github-mcp-server` | 29 |
+
+`switchboard index` produced 46 `:Tool` nodes. MCP publishes no dependency
+types, so an edge exists only where a capability is declared; `switchboard
+annotate` declares three:
+
+```bash
+switchboard annotate fetch fetch --consumes url --produces content
+switchboard annotate github get_file_contents --consumes owner,repo,path --produces content
+switchboard annotate filesystem write_file --consumes path,content
+```
+
+That yields 2 `:FEEDS` edges, and both chains execute against the live services:
+
+| Task | Plan | Result |
+|---|---|---|
+| "fetch a web page and save it to a local file" | `fetch.fetch -> filesystem.write_file` | wrote the live `https://example.com` text to `example.html` |
+| "download README.md from a GitHub repository and save it to a local file" | `github.get_file_contents -> filesystem.write_file` | wrote 8,692 bytes from the live GitHub API to `README.md` |
+
+The learning loop ran on real edges too: three successful
+`fetch.fetch -> filesystem.write_file` runs raised its weight 1.0 -> 1.2 ->
+1.4 -> 1.6 -> 1.8 (cap 2.0), read back with `switchboard graph`. The GitHub edge
+stayed at 1.0 and the planner still chose it for the GitHub task, because when
+the top-ranked tool has no incoming route the planner takes the reachable goal
+whose first tool ranks best for the task. `docs/TESTING.md` has the transcript.
+
 ## Reproduce
 
 ```bash
@@ -189,7 +225,11 @@ opencode run --format json \
 - Three replicates, deterministic by construction. There is no variance to
   report, which is useful for verification and not a substitute for a larger
   sample.
-- The `consumes` / `produces` convention is ours. Real MCP servers often publish
-  no output types; indexing them needs a fallback or a capability annotation.
+- The `consumes` / `produces` convention is ours. MCP publishes no dependency
+  types, so a real server gets edges only where `switchboard annotate` declares
+  them (see above). Everything else is indexed but not orderable.
+- The binder resolves `$input.X` and `$steps.N.result` only. It does not project
+  a field out of a step result, so a chain that needs to pull `owner` out of a
+  search result is not expressible yet.
 - OpenCode baseline caveat above.
 - The gateway is a single-user local process. No auth, tenancy, or quotas.

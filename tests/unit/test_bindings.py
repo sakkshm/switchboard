@@ -24,6 +24,23 @@ def test_capability_header():
     assert index.parse_capabilities("no header") == ([], [])
 
 
+def test_capabilities_use_annotations_without_a_header():
+    from types import SimpleNamespace
+
+    tool = SimpleNamespace(
+        description="no header",
+        input_schema={"required": ["path"]},
+        output_schema={"properties": {"content": {}}},
+    )
+    assert index.capabilities(tool) == ([], [])
+    assert index.capabilities(tool, {"consumes": ["path"], "produces": ["content"]}) == (
+        ["path"],
+        ["content"],
+    )
+    tool.description = "Header. [consumes: a | produces: b]"
+    assert index.capabilities(tool, {"produces": ["file"]}) == (["a"], ["b"])
+
+
 def test_bind_and_validate():
     steps, required = binder.bind(TOOLS, ["echo.echo_a", "echo.echo_b"])
     assert required == ["value"]

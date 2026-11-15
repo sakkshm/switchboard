@@ -107,6 +107,81 @@ def index_command(_args):
     return 0
 
 
+def tools_command(args):
+    current = config.load()
+    try:
+        tools = planner.load_tools(Hydra.from_config(current))
+    except Exception as exc:
+        return fail(str(exc))
+    if args.server:
+        tools = [tool for tool in tools if tool["server"] == args.server]
+    if not tools:
+        return fail("no indexed tools; run switchboard index")
+    for tool in sorted(tools, key=lambda item: item["key"]):
+        print(f"{tool['key']:42} consumes={tool['consumes']} produces={tool['produces']}")
+    print(f"{len(tools)} tools")
+    return 0
+
+
+def graph_command(_args):
+    current = config.load()
+    try:
+        rows = Hydra.from_config(current).query(
+            "MATCH (a:Tool)-[r:FEEDS]->(b:Tool) RETURN a.key, b.key, r.weight"
+        )
+    except Exception as exc:
+        return fail(str(exc))
+    if not rows:
+        return fail("no FEEDS edges; run switchboard index")
+    for source, target, weight in sorted(rows):
+        print(f"{source} -> {target}  weight={1.0 if weight is None else weight}")
+    print(f"{len(rows)} edges")
+    return 0
+
+
+def reset_command(args):
+    if not args.yes:
+        return fail("this deletes every tool and plan in the graph; pass --yes")
+    current = config.load()
+    hydra = Hydra.from_config(current)
+    try:
+        tools = hydra.scalar("MATCH (t:Tool) RETURN count(*) AS n")
+        plans = hydra.scalar("MATCH (p:Plan) RETURN count(*) AS n")
+        hydra.query("MATCH (t:Tool) DETACH DELETE t")
+        hydra.query("MATCH (p:Plan) DETACH DELETE p")
+    except Exception as exc:
+        return fail(str(exc))
+    print(f"deleted {tools} tools and {plans} plans")
+    return 0
+
+
+def annotate(args):
+    current = config.load()
+    server = current["servers"].get(args.name)
+    if server is None:
+        return fail(f"{args.name} is not configured")
+    try:
+        names = {tool["name"] for tool in index.discover({args.name: server})}
+    except Exception as exc:
+        return fail(f"cannot reach {args.name}: {exc}")
+    if args.tool not in names:
+        return fail(f"{args.name} has no tool named {args.tool}")
+
+    entry = server.setdefault("capabilities", {}).setdefault(args.tool, {})
+    if args.consumes is not None:
+        entry["consumes"] = [part.strip() for part in args.consumes.split(",") if part.strip()]
+    if args.produces is not None:
+        entry["produces"] = [part.strip() for part in args.produces.split(",") if part.strip()]
+    if not entry.get("consumes") and not entry.get("produces"):
+        server["capabilities"].pop(args.tool)
+    if not server["capabilities"]:
+        server.pop("capabilities")
+    config.save(current)
+    print(f"annotated {args.name}.{args.tool}: consumes={entry.get('consumes', [])} produces={entry.get('produces', [])}")
+    print("run switchboard index to refresh the graph")
+    return 0
+
+
 def plan_command(args):
     current = config.load()
     try:
@@ -188,8 +263,23 @@ def build_parser():
     remove_mcp_parser.set_defaults(handler=remove_mcp)
 
     sub.add_parser("list").set_defaults(handler=list_servers)
+    tools_parser = sub.add_parser("tools", help="list indexed tools and their types")
+    tools_parser.add_argument("--server")
+    tools_parser.set_defaults(handler=tools_command)
+    sub.add_parser("graph", help="list FEEDS edges and learned weights").set_defaults(handler=graph_command)
     sub.add_parser("index").set_defaults(handler=index_command)
     sub.add_parser("status").set_defaults(handler=status_command)
+
+    reset_parser = sub.add_parser("reset", help="delete every tool and plan from the graph")
+    reset_parser.add_argument("--yes", action="store_true")
+    reset_parser.set_defaults(handler=reset_command)
+
+    annotate_parser = sub.add_parser("annotate", help="set consumes/produces for an upstream tool")
+    annotate_parser.add_argument("name")
+    annotate_parser.add_argument("tool")
+    annotate_parser.add_argument("--consumes")
+    annotate_parser.add_argument("--produces")
+    annotate_parser.set_defaults(handler=annotate)
 
     plan = sub.add_parser("plan")
     plan.add_argument("task")
@@ -209,7 +299,14 @@ def build_parser():
 
 
 def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    command = None
+    if "--" in argv:
+        split = argv.index("--")
+        argv, command = argv[:split], argv[split + 1 :]
     args = build_parser().parse_args(argv)
+    if command is not None and hasattr(args, "command"):
+        args.command = command
     try:
         return args.handler(args)
     except ValueError as exc:

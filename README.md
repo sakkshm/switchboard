@@ -123,6 +123,50 @@ Config lives in `~/.config/switchboard/config.json`. It contains upstream
 commands and URLs, not a tool catalog. Tools are discovered at `index` and at
 server startup. Secrets in headers stay as `{env:NAME}` references.
 
+### Real servers, no fixtures
+
+The same flow runs against real MCP servers. This is the tested set
+(2026-11-15): `filesystem` (npx), `fetch` (uvx), and the official `github`
+Docker server.
+
+```bash
+switchboard add mcp filesystem -- npx -y @modelcontextprotocol/server-filesystem /tmp/opencode/real-demo
+switchboard add mcp fetch -- uvx mcp-server-fetch
+switchboard add mcp github --env 'GITHUB_PERSONAL_ACCESS_TOKEN={env:GITHUB_TOKEN}' -- \
+  docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN -e GITHUB_TOOLSETS=repos,issues \
+  ghcr.io/github/github-mcp-server
+
+switchboard reset --yes          # drop the fixture graph first
+switchboard index                # 46 tools; edges only where a capability is declared
+switchboard tools                # every indexed tool and its types
+switchboard graph                # every FEEDS edge and its learned weight
+```
+
+MCP publishes no dependency types, so a real tool has no edges until you say
+what it consumes and produces:
+
+```bash
+switchboard annotate fetch fetch --consumes url --produces content
+switchboard annotate github get_file_contents --consumes owner,repo,path --produces content
+switchboard annotate filesystem write_file --consumes path,content
+```
+
+`plan` then `run` execute the declared chains against the live services:
+
+```bash
+switchboard plan "fetch a web page and save it to a local file" \
+  --input url=https://example.com --input path=/tmp/opencode/real-demo/example.html
+switchboard run <plan_id> --input url=https://example.com --input path=/tmp/opencode/real-demo/example.html
+
+switchboard plan "download README.md from a GitHub repository and save it to a local file" \
+  --input owner=sakkshm --input repo=switchboard --input path=README.md
+switchboard run <plan_id> --input owner=sakkshm --input repo=switchboard --input path=README.md
+```
+
+Each successful run raises the weight on the edges it used, so `switchboard
+graph` shows `fetch.fetch -> filesystem.write_file  weight=1.8` after three
+runs. `docs/TESTING.md` has the full transcript.
+
 OpenCode client config for the stdio gateway. The tested variant is
 `evals/harness/gateway/opencode.json`: copy it to the repo root as
 `opencode.json` so OpenCode picks it up from the git root.
@@ -210,8 +254,9 @@ records from different sources, no vector search over the catalog.
 | HydraDB graph, traversal, plans, edge weights | real, OSS 0.4.0 |
 | CLI, gateway, planner, binder, executor | real |
 | 60-tool catalog | synthetic, our four fixture MCP servers |
-| Capability headers (`consumes` / `produces`) | our convention; real servers often lack output types |
+| Capability headers (`consumes` / `produces`) | our convention; MCP publishes none, so real servers declare them with `switchboard annotate` |
 | Order validity and learning curve | measured on the fixture, with a baseline |
+| Real servers (filesystem, fetch, github) | real MCP sessions; `find` + `run` wrote a fetched page and a live GitHub README to disk |
 | OpenCode gateway run | real MCP session, 2 tools, `find` + `run` succeeded |
 | OpenCode 60-tool baseline | blocked in v2.2.5; token cost measured at the MCP layer |
 | Auth, multi-tenancy, production hardening | not built. Stated as out of scope |
@@ -249,6 +294,7 @@ Each one is a product on its own and none of them makes the demo better.
 
 ## Docs
 
+- `docs/E2E.md`: end-to-end runbook, every feature with expected output
 - `docs/RESULTS.md`: measured curve, token cost, trap-route effect, A/B caveat
 - `docs/SPEC.md`: the product, the schema, the evals, the risks
 - `docs/PLAN.md`: the schedule, the gates, the pre-decided cut list

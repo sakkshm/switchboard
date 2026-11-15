@@ -10,6 +10,7 @@ evals/results/*
 node_modules/
 .vercel/
 .playwright-mcp/
+opencode.json
 
 .venv/
 *.egg-info/

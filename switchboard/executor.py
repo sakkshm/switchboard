@@ -42,12 +42,28 @@ async def list_tools(server):
         return (await client.list_tools()).tools
 
 
+def _blocks_text(blocks):
+    """Text from content blocks; a resource's text wins over status text."""
+    text, resource = [], []
+    for block in blocks:
+        if not isinstance(block, dict):
+            block = block.model_dump()
+        if block.get("type") == "resource":
+            resource.append(block.get("resource", {}).get("text", ""))
+        elif block.get("text") is not None:
+            text.append(block["text"])
+    return "".join(resource) or "".join(text)
+
+
 def value(result):
     if result.structured_content is not None:
         structured = result.structured_content
         # Python MCP servers wrap a bare scalar return in {"result": x}
         if isinstance(structured, dict) and list(structured) == ["result"]:
             return structured["result"]
+        # Go servers return {"content": [text, resource]} for file reads
+        if isinstance(structured, dict) and list(structured) == ["content"] and isinstance(structured["content"], list):
+            return _blocks_text(structured["content"])
         return structured
     text = "".join(block.text for block in result.content if getattr(block, "type", "") == "text")
     try:

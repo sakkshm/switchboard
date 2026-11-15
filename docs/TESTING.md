@@ -245,6 +245,63 @@ gateway failure; the exact 60-vs-2 token cost is measured from the MCP
 says `mcp connected`. Use `--print-logs --log-level debug` and look for
 `mcp connected`, or inspect the tool calls in `--format json` output.
 
+### Real servers, no fixtures (verified 2026-11-15)
+
+Three real MCP servers, no synthetic tools:
+
+- `filesystem`: `npx -y @modelcontextprotocol/server-filesystem /tmp/opencode/real-demo`
+- `fetch`: `uvx mcp-server-fetch`
+- `github`: `docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN -e GITHUB_TOOLSETS=repos,issues ghcr.io/github/github-mcp-server`, token via `{env:GITHUB_TOKEN}`
+
+```bash
+export SWITCHBOARD_CONFIG=/tmp/opencode/real-demo/config.json
+export GITHUB_TOKEN=$(gh auth token)
+
+switchboard add mcp filesystem -- npx -y @modelcontextprotocol/server-filesystem /tmp/opencode/real-demo
+switchboard add mcp fetch -- uvx mcp-server-fetch
+switchboard add mcp github --env 'GITHUB_PERSONAL_ACCESS_TOKEN={env:GITHUB_TOKEN}' -- \
+  docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN -e GITHUB_TOOLSETS=repos,issues \
+  ghcr.io/github/github-mcp-server
+
+switchboard reset --yes          # clear the fixture graph first
+switchboard index                # 46 tools, 2 FEEDS edges
+switchboard tools                # every indexed tool and its types
+switchboard graph                # every edge and its learned weight
+```
+
+MCP does not publish dependency types, so `switchboard index` only creates an
+edge where a capability was declared. `annotate` sets them for one upstream tool:
+
+```bash
+switchboard annotate fetch fetch --consumes url --produces content
+switchboard annotate github get_file_contents --consumes owner,repo,path --produces content
+switchboard annotate filesystem write_file --consumes path,content
+```
+
+The two declared chains then execute against the real services:
+
+```bash
+switchboard plan "fetch a web page and save it to a local file" \
+  --input url=https://example.com --input path=/tmp/opencode/real-demo/example.html
+switchboard run <plan_id> --input url=https://example.com --input path=/tmp/opencode/real-demo/example.html
+# fetch.fetch -> filesystem.write_file; the file on disk holds the page text
+
+switchboard plan "download README.md from a GitHub repository and save it to a local file" \
+  --input owner=sakkshm --input repo=switchboard --input path=README.md
+switchboard run <plan_id> --input owner=sakkshm --input repo=switchboard --input path=README.md
+# github.get_file_contents -> filesystem.write_file; 8692 bytes from the live GitHub API
+```
+
+Each successful run raises its edge weight; `switchboard graph` shows
+`fetch.fetch -> filesystem.write_file  weight=1.8` after three runs (cap 2.0).
+When the top-ranked tool has no incoming route, the planner falls back to the
+reachable goal whose first tool ranks best for the task, so a heavy `fetch` edge
+does not hijack a GitHub task.
+
+The GitHub server returns file reads as `{"content": [text, resource]}`; the
+executor unwraps the resource text so a downstream `write_file` gets a string.
+That normalization is in `switchboard/executor.py`.
+
 ## 6. Track and judging
 
 Pick **Track 2, the agent context layer**. The product is the described shape:
@@ -305,7 +362,7 @@ LLM baseline. Never cut: removal test, eval numbers, BM25 baseline, honest
 - Config headers must store `{env:NAME}`, not the secret. The CLI must not echo
   the resolved value.
 - The fixture capability header is a convention, not MCP. Real servers need
-  output types or a manifest. Say so.
+  `switchboard annotate` for consumes/produces, or they have no edges.
 - OpenCode with default Code Mode groups MCP tools; set `codemode: false` for
   both sides of the A/B. In v2.2.5 this surfaced the gateway's 2 tools but not
   the fixture servers' tools, so the live 60-tool baseline is blocked.

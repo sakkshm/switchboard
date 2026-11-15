@@ -50,14 +50,18 @@ HydraDB's traversal; route choice comes from execution data stored back in the
 graph.
 
 Tested as a real MCP client in OpenCode, over stdio and over an HTTP daemon with
-two concurrent clients. The fixtures and eval harness are in the repo so the
-numbers can be reproduced.
+two concurrent clients. It also runs end to end against three real servers, no
+fixtures: the filesystem server, the fetch server, and GitHub's own MCP server in
+Docker. 46 tools indexed; the declared chains fetched a live web page and a live
+GitHub README and wrote both to disk, and repeated runs raised the HydraDB edge
+weight 1.0 -> 1.8. The eval harness is in the repo so the numbers reproduce.
 
 Repo: github.com/sakkshm/switchboard/tree/agent/gateway
 Demo: [Loom link]
 
-Built with HydraDB OSS 0.4.0 and MinIO. The catalog is synthetic; the graph,
-plans, weights, and MCP transports are real.
+Built with HydraDB OSS 0.4.0 and MinIO. The 60-tool learning-curve catalog is
+synthetic; the graph, plans, weights, MCP transports, and the real-server runs
+are real.
 
 ## Notes
 

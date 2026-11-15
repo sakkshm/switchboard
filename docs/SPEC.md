@@ -119,7 +119,10 @@ switchboard add mcp github --url https://api.githubcopilot.com/mcp \
 switchboard remove mcp issues
 switchboard list
 switchboard index
-switchboard reset
+switchboard tools
+switchboard graph
+switchboard annotate github get_file_contents --consumes owner,repo,path --produces content
+switchboard reset --yes
 switchboard plan "comment on the failing test issue in acme/api"
 switchboard run <plan_id> --input repo=acme/api --input message="on it"
 switchboard serve
@@ -161,6 +164,9 @@ Rules:
 - `switchboard list` prints servers, transport, connection state, and tool count.
 - `switchboard status` prints HydraDB health, tool/edge/plan counts, and the
   current weights.
+- `switchboard annotate` writes consumes/produces for one upstream tool into the
+  config. MCP publishes no dependency types, so this is how a real server gets
+  edges. `switchboard tools` and `switchboard graph` print what was indexed.
 
 ## 6. MCP surface
 
