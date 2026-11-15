@@ -375,16 +375,17 @@ what is mocked.
 ```bash
 cp .env.example .env
 docker compose up -d --wait                # G0
-pip install -e .
-python evals/chain_check.py                # G2
-switchboard add mcp issues -- python -m tests.fixtures.issue_server
-switchboard add mcp repo -- python -m tests.fixtures.repo_server
-switchboard add mcp incident -- python -m tests.fixtures.incident_server
-switchboard add mcp account -- python -m tests.fixtures.account_server
-switchboard index                          # G3
-switchboard plan "comment on the failing test issue in acme/api"
-switchboard serve                          # OpenCode launches this
-python evals/run.py --reps 3 --rounds 5    # G5
+python -m venv .venv
+.venv/bin/pip install -e ".[dev]"
+.venv/bin/python evals/chain_check.py      # G2
+.venv/bin/switchboard add mcp issues -- python -m tests.fixtures.issue_server
+.venv/bin/switchboard add mcp repo -- python -m tests.fixtures.repo_server
+.venv/bin/switchboard add mcp incident -- python -m tests.fixtures.incident_server
+.venv/bin/switchboard add mcp account -- python -m tests.fixtures.account_server
+.venv/bin/switchboard index                # G3
+.venv/bin/switchboard plan "comment on the failing test issue in acme/api"
+.venv/bin/switchboard serve                # OpenCode launches this
+.venv/bin/python evals/run.py --reps 3 --rounds 5    # G5
 ```
 
 Baseline OpenCode config lives in `evals/harness/baseline/` and points at the

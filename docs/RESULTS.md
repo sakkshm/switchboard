@@ -218,8 +218,7 @@ cp .env.example .env
 docker compose up -d --wait
 
 python -m venv .venv
-. .venv/bin/activate
-pip install -e ".[dev]"
+.venv/bin/pip install -e ".[dev]"
 
 export SWITCHBOARD_CONFIG=$PWD/evals/harness/switchboard.json
 switchboard index
