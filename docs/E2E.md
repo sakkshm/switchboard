@@ -67,17 +67,34 @@ untouched), `servers=4 tools=60 edges=69`, `60 tools`, `69 edges`.
 
 ## 5. Plan and run
 
+On a freshly reset graph every edge weighs 1.0, so the first plan for this task
+takes the **trap route**: `repo.guess_repo` (a tool that declares the same
+consumes/produces as `repo.repo_search` but always fails). That is the point of
+the fixture - a plausible route the graph cannot tell from the real one until it
+has run.
+
 ```bash
 out=$(.venv/bin/switchboard plan "comment on the failing test issue in acme/api" \
   --input repo=acme/api --input message=reproduced)
 echo "$out"
+# 0. repo.guess_repo   ...   <- trap
 .venv/bin/switchboard run "$(echo "$out" | awk 'NR==1{print $2}')" \
   --input repo=acme/api --input message=reproduced
+# ok: false, step 0 raises "broken tool: guess_repo"
 ```
 
-Expect a four-step chain `repo.repo_search -> repo.list_issues -> issue.get_issue
--> issue.add_comment`, then `"ok": true` ending in
-`comment on acme/api#42: failing test in checkout: reproduced`.
+Run the same task a few times (step 6) and the planner switches to the real
+route, then succeeds:
+
+```bash
+out=$(.venv/bin/switchboard plan "comment on the failing test issue in acme/api" \
+  --input repo=acme/api --input message=reproduced)
+# 0. repo.repo_search -> repo.list_issues -> issue.get_issue -> issue.add_comment
+.venv/bin/switchboard run "$(echo "$out" | awk 'NR==1{print $2}')" \
+  --input repo=acme/api --input message=reproduced
+# "ok": true, ending in
+# comment on acme/api#42: failing test in checkout: reproduced
+```
 
 Also check the missing-input path:
 
@@ -88,16 +105,22 @@ Also check the missing-input path:
 
 ## 6. Learning loop
 
+The trap and the real first hop both feed `repo.list_issues`. After a reset both
+edges weigh 1.0; running the task moves them apart.
+
 ```bash
-.venv/bin/switchboard graph | grep 'repo.repo_search -> repo.list_issues'
-# weight=1.0
-# run the plan from step 5 once more
-.venv/bin/switchboard graph | grep 'repo.repo_search -> repo.list_issues'
-# weight=1.2
+.venv/bin/switchboard graph | grep -E 'guess_repo -> repo.list_issues|repo_search -> repo.list_issues'
+# repo.guess_repo  -> repo.list_issues  weight=1.0
+# repo.repo_search -> repo.list_issues  weight=1.0
+# run the plan from step 5 until it succeeds (a few rounds)
+.venv/bin/switchboard graph | grep -E 'guess_repo -> repo.list_issues|repo_search -> repo.list_issues'
+# repo.guess_repo  -> repo.list_issues  weight=0.6   (failed, decayed)
+# repo.repo_search -> repo.list_issues  weight=2.0   (succeeded, at cap)
 ```
 
 A successful run raises each used `FEEDS.weight` by 0.2 (cap 2.0); a failed step
-lowers it by 0.2. The weight lives in HydraDB, not in code.
+lowers it by 0.2. Once `repo.repo_search` outranks `repo.guess_repo`, the planner
+routes to it. The weight lives in HydraDB, not in code.
 
 ## 7. MCP surface, stdio and HTTP
 
@@ -217,9 +240,9 @@ Remove `opencode.json` when done (it is git-ignored).
 | `tools`, `graph` | counts and weights listed | 4 |
 | `plan`, multi-step order | four-step chain | 5 |
 | `plan`, missing inputs | `missing: ...` | 5 |
-| `run`, success | `ok: true` | 5 |
-| `run`, failure and weight down | trap task drops the edge | 8 |
-| Learning loop | weight 1.0 -> 1.2 on a run | 6 |
+| `run`, failure on the trap | trap route fails, edge decays | 5 |
+| `run`, success after learning | `ok: true` | 5, 6 |
+| Learning loop | real edge 2.0, trap edge 0.6 | 6 |
 | MCP surface, stdio | exactly `find`, `run` | 7 |
 | MCP surface, HTTP, concurrent | two clients both `ok` | 7 |
 | Removal test | `NoPlan` on empty graph | 8 |
