@@ -1,0 +1,29 @@
+{
+  "servers": {
+    "repo": {
+      "transport": "stdio",
+      "command": [".venv/bin/python", "-m", "tests.fixtures.repo_server"],
+      "cwd": "."
+    },
+    "issue": {
+      "transport": "stdio",
+      "command": [".venv/bin/python", "-m", "tests.fixtures.issue_server"],
+      "cwd": "."
+    },
+    "incident": {
+      "transport": "stdio",
+      "command": [".venv/bin/python", "-m", "tests.fixtures.incident_server"],
+      "cwd": "."
+    },
+    "account": {
+      "transport": "stdio",
+      "command": [".venv/bin/python", "-m", "tests.fixtures.account_server"],
+      "cwd": "."
+    }
+  },
+  "hydradb": {
+    "url": "http://127.0.0.1:18443",
+    "graph": "default",
+    "token_env": "HYDRADB_TOKEN"
+  }
+}

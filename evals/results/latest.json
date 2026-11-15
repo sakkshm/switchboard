@@ -1,0 +1,361 @@
+{
+  "n": 24,
+  "train": 18,
+  "holdout": 6,
+  "reps": 3,
+  "rounds": 5,
+  "bm25": {
+    "n": 24,
+    "top1": 0,
+    "order_validity": 0,
+    "task_success": 0,
+    "precision": 0.375,
+    "recall": 0.375,
+    "spread": {
+      "top1": [
+        0,
+        0
+      ],
+      "order_validity": [
+        0,
+        0
+      ],
+      "task_success": [
+        0,
+        0
+      ],
+      "precision": [
+        0.375,
+        0.375
+      ],
+      "recall": [
+        0.375,
+        0.375
+      ]
+    },
+    "latency_median_ms": 10.463732499829348,
+    "latency_p95_ms": 12.132068000028084,
+    "failures": [
+      "account-1",
+      "account-2",
+      "account-3",
+      "account-4",
+      "account-5",
+      "account-6",
+      "incident-1",
+      "incident-2",
+      "incident-3",
+      "incident-4",
+      "incident-5",
+      "incident-6",
+      "issue-1",
+      "issue-2",
+      "issue-3",
+      "issue-4",
+      "issue-5",
+      "issue-6",
+      "review-1",
+      "review-2",
+      "review-3",
+      "review-4",
+      "review-5",
+      "review-6"
+    ]
+  },
+  "uniform": {
+    "holdout": {
+      "n": 6,
+      "top1": 0.3333333333333333,
+      "order_validity": 1,
+      "task_success": 0.3333333333333333,
+      "precision": 0.8333333333333334,
+      "recall": 0.8333333333333334,
+      "spread": {
+        "top1": [
+          0.3333333333333333,
+          0.3333333333333333
+        ],
+        "order_validity": [
+          1,
+          1
+        ],
+        "task_success": [
+          0.3333333333333333,
+          0.3333333333333333
+        ],
+        "precision": [
+          0.8333333333333334,
+          0.8333333333333334
+        ],
+        "recall": [
+          0.8333333333333334,
+          0.8333333333333334
+        ]
+      },
+      "latency_median_ms": 798.6199204999593,
+      "latency_p95_ms": 3422.553074999996,
+      "failures": [
+        "account-2",
+        "incident-5",
+        "issue-2",
+        "issue-5"
+      ]
+    },
+    "train": {
+      "n": 18,
+      "top1": 0.4444444444444444,
+      "order_validity": 1,
+      "task_success": 0.4444444444444444,
+      "precision": 0.8611111111111112,
+      "recall": 0.8611111111111112,
+      "spread": {
+        "top1": [
+          0.4444444444444444,
+          0.4444444444444444
+        ],
+        "order_validity": [
+          1,
+          1
+        ],
+        "task_success": [
+          0.4444444444444444,
+          0.4444444444444444
+        ],
+        "precision": [
+          0.8611111111111112,
+          0.8611111111111112
+        ],
+        "recall": [
+          0.8611111111111112,
+          0.8611111111111112
+        ]
+      },
+      "latency_median_ms": 1007.7154370001153,
+      "latency_p95_ms": 3547.2214240000994,
+      "failures": [
+        "account-1",
+        "account-4",
+        "account-5",
+        "account-6",
+        "issue-1",
+        "issue-3",
+        "issue-4",
+        "issue-6",
+        "review-1",
+        "review-4"
+      ]
+    }
+  },
+  "learned": [
+    {
+      "round": 0,
+      "n": 6,
+      "top1": 0.3333333333333333,
+      "order_validity": 1,
+      "task_success": 0.3333333333333333,
+      "precision": 0.8333333333333334,
+      "recall": 0.8333333333333334,
+      "spread": {
+        "top1": [
+          0.3333333333333333,
+          0.3333333333333333
+        ],
+        "order_validity": [
+          1,
+          1
+        ],
+        "task_success": [
+          0.3333333333333333,
+          0.3333333333333333
+        ],
+        "precision": [
+          0.8333333333333334,
+          0.8333333333333334
+        ],
+        "recall": [
+          0.8333333333333334,
+          0.8333333333333334
+        ]
+      },
+      "latency_median_ms": 760.1361519999728,
+      "latency_p95_ms": 2943.180532000042,
+      "failures": [
+        "account-2",
+        "incident-5",
+        "issue-2",
+        "issue-5"
+      ]
+    },
+    {
+      "round": 1,
+      "n": 6,
+      "top1": 1,
+      "order_validity": 1,
+      "task_success": 1,
+      "precision": 1.0,
+      "recall": 1.0,
+      "spread": {
+        "top1": [
+          1,
+          1
+        ],
+        "order_validity": [
+          1,
+          1
+        ],
+        "task_success": [
+          1,
+          1
+        ],
+        "precision": [
+          1.0,
+          1.0
+        ],
+        "recall": [
+          1.0,
+          1.0
+        ]
+      },
+      "latency_median_ms": 3085.8575225000777,
+      "latency_p95_ms": 3148.653686000216,
+      "failures": []
+    },
+    {
+      "round": 2,
+      "n": 6,
+      "top1": 1,
+      "order_validity": 1,
+      "task_success": 1,
+      "precision": 1.0,
+      "recall": 1.0,
+      "spread": {
+        "top1": [
+          1,
+          1
+        ],
+        "order_validity": [
+          1,
+          1
+        ],
+        "task_success": [
+          1,
+          1
+        ],
+        "precision": [
+          1.0,
+          1.0
+        ],
+        "recall": [
+          1.0,
+          1.0
+        ]
+      },
+      "latency_median_ms": 2909.2764569998053,
+      "latency_p95_ms": 3097.887527000239,
+      "failures": []
+    },
+    {
+      "round": 3,
+      "n": 6,
+      "top1": 1,
+      "order_validity": 1,
+      "task_success": 1,
+      "precision": 1.0,
+      "recall": 1.0,
+      "spread": {
+        "top1": [
+          1,
+          1
+        ],
+        "order_validity": [
+          1,
+          1
+        ],
+        "task_success": [
+          1,
+          1
+        ],
+        "precision": [
+          1.0,
+          1.0
+        ],
+        "recall": [
+          1.0,
+          1.0
+        ]
+      },
+      "latency_median_ms": 3063.760031999891,
+      "latency_p95_ms": 3344.341753000208,
+      "failures": []
+    },
+    {
+      "round": 4,
+      "n": 6,
+      "top1": 1,
+      "order_validity": 1,
+      "task_success": 1,
+      "precision": 1.0,
+      "recall": 1.0,
+      "spread": {
+        "top1": [
+          1,
+          1
+        ],
+        "order_validity": [
+          1,
+          1
+        ],
+        "task_success": [
+          1,
+          1
+        ],
+        "precision": [
+          1.0,
+          1.0
+        ],
+        "recall": [
+          1.0,
+          1.0
+        ]
+      },
+      "latency_median_ms": 2959.285192500147,
+      "latency_p95_ms": 3125.1875930001916,
+      "failures": []
+    },
+    {
+      "round": 5,
+      "n": 6,
+      "top1": 1,
+      "order_validity": 1,
+      "task_success": 1,
+      "precision": 1.0,
+      "recall": 1.0,
+      "spread": {
+        "top1": [
+          1,
+          1
+        ],
+        "order_validity": [
+          1,
+          1
+        ],
+        "task_success": [
+          1,
+          1
+        ],
+        "precision": [
+          1.0,
+          1.0
+        ],
+        "recall": [
+          1.0,
+          1.0
+        ]
+      },
+      "latency_median_ms": 3134.7406625000076,
+      "latency_p95_ms": 3377.045648999683,
+      "failures": []
+    }
+  ],
+  "created_at": "2026-11-15T04:40:51Z"
+}

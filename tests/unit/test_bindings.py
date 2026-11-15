@@ -51,3 +51,16 @@ def test_empty_graph_has_no_plan():
 
     with pytest.raises(planner.NoPlan):
         planner.make(EmptyHydra(), "anything")
+
+
+def test_equal_weight_prefers_longer_path():
+    def route(*keys):
+        return {
+            "nodes": [{"properties": {"key": key}} for key in keys],
+            "relationships": [{"properties": {"weight": 1.4}} for _ in keys[1:]],
+        }
+
+    short = route("repo.read_file", "repo.get_diff", "repo.post_review")
+    long = route("repo.locate_file", "repo.read_file", "repo.get_diff", "repo.post_review")
+    assert planner.choose([short, long], ["repo.locate_file"]) is long
+

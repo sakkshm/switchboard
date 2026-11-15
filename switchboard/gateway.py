@@ -28,7 +28,7 @@ def _update_weights(hydra, steps, delta):
         )
 
 
-async def execute(hydra, plan, inputs):
+async def execute(hydra, plan, inputs, learn=True):
     tools = {tool["key"]: tool for tool in planner.load_tools(hydra)}
     servers = config.load()["servers"]
     error = validator.check(plan["steps"], tools)
@@ -62,7 +62,10 @@ async def execute(hydra, plan, inputs):
         try:
             results.append(await call(server, tool["name"], arguments))
         except Exception as exc:
-            _update_weights(hydra, plan["steps"][: len(results) + 1], -0.2)
+            if learn:
+                # include the failed step's outgoing edge so a broken first hop is penalized
+                reach = min(len(plan["steps"]), step["i"] + 2)
+                _update_weights(hydra, plan["steps"][:reach], -0.2)
             return {
                 "plan_id": plan["plan_id"],
                 "ok": False,
@@ -71,7 +74,8 @@ async def execute(hydra, plan, inputs):
                 "results": results,
             }
 
-    _update_weights(hydra, plan["steps"], 0.2)
+    if learn:
+        _update_weights(hydra, plan["steps"], 0.2)
     return {"plan_id": plan["plan_id"], "ok": True, "results": results}
 
 

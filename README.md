@@ -3,16 +3,16 @@
 One MCP gateway for every tool. The agent asks for a task and gets a four-step
 plan, not a sixty-tool catalog.
 
-Status: HydraDB OSS + MinIO backend is verified. The CLI, gateway, fixtures, and
-evals are being built for the Nov 16 submission. Commands below are the target
-interface, not a finished release.
+Status: verified on 2026-11-15 against HydraDB OSS 0.4.0 + MinIO, OpenCode
+v2.2.5, and two concurrent HTTP MCP clients. The CLI, gateway, fixtures, and
+evals are in this repo. Results and caveats: `docs/RESULTS.md`.
 
 ## The problem
 
 Tools give a model hands. Every tool it might use is described in its context on
 every turn, and it picks by similarity, not by correctness. Four things go wrong:
 
-1. **Bloat.** 60 tools at roughly 120 tokens each is about 7,000 tokens per
+1. **Bloat.** 60 tools at roughly 90 tokens each is about 5,500 tokens per
    turn, to use maybe 4.
 2. **Wrong order.** Tool B needs an ID tool A produces. The model discovers
    this by trying, failing, and retrying, one round trip per attempt.
@@ -52,7 +52,8 @@ The full upstream catalog never enters the model's window.
 | | Four MCP servers, direct | Switchboard |
 |---|---|---|
 | MCP servers the client configures | 4 | **1** |
-| Tool schemas in context | 60 | **2** |
+| Tool schemas in the client's MCP layer | 60 | **2** |
+| Tool-schema tokens at the MCP layer | 5,453 | **169** |
 | Tools named in the plan | 0 | **4** |
 | Order comes from | model guess | **graph path** |
 | Learned edge weights | none | **HydraDB** |
@@ -63,15 +64,37 @@ returned by `find`, not four schemas in the tool list. That distinction is in
 the pitch on purpose: a gateway cannot advertise a task-specific tool list
 before it has the task.
 
-Baseline and gateway run the same task in OpenCode:
+Baseline and gateway in OpenCode:
 
-- **Baseline:** OpenCode connects to the four fixture servers directly and sees
-  60 native tools.
-- **Gateway:** OpenCode connects to `switchboard serve` and sees 2 tools. `find`
-  returns the same 4-step chain, and `run` executes it.
+- **Gateway, verified:** OpenCode connects to `switchboard serve` and sees 2
+  tools. The model called `find` for "comment on the failing test issue in
+  acme/api", got a 4-step plan, called `run`, and got `ok: true` with four
+  results ending in the posted comment.
+- **Baseline, blocked by the client:** the four fixture servers connect with 60
+  tools total, but OpenCode v2.2.5 did not put them in the model's tool catalog
+  even with `codemode: false`. The 5,453-vs-169 token number is therefore
+  measured from real MCP `tools/list` payloads, not from a live 60-tool model
+  run. Details and the failed workarounds are in `docs/RESULTS.md`.
 
-The eval table reports tool schemas, tokens, graph calls, order validity, task
-success, and the learning curve. No web UI is required to see the difference.
+The eval table reports tool schemas, tokens, order validity, task success, and
+the learning curve. No web UI is required to see the difference.
+
+## Results
+
+24 tasks, 18 train / 6 holdout, 3 replicates, 5 rounds:
+
+| Mode | Holdout success | Order validity |
+|---|---|---|
+| BM25, no graph | 0.00 | 0.00 |
+| Uniform graph | 0.33 | 1.00 |
+| Learned graph, round 1 | 1.00 | 1.00 |
+| Learned graph, round 5 | 1.00 | 1.00 |
+
+The graph supplies order. The learned `FEEDS` weights pick the route: four
+fixture families contain a trap sibling with identical types that fails at
+execution, and uniform weights take it 4 times out of 6 on the holdout. One
+training round moves the weights and the holdout goes to 6/6. Full tables,
+latency, and the A/B caveat: `docs/RESULTS.md`. Raw: `evals/results/`.
 
 ## Install
 
@@ -81,16 +104,17 @@ docker compose up -d                 # HydraDB OSS 0.4.0 + MinIO
 
 python -m venv .venv
 . .venv/bin/activate
-pip install -e .
+pip install -e ".[dev]"
 
-switchboard add mcp issues -- python -m tests.fixtures.issue_server
+switchboard add mcp issue -- python -m tests.fixtures.issue_server
 switchboard add mcp repo -- python -m tests.fixtures.repo_server
 switchboard add mcp incident -- python -m tests.fixtures.incident_server
 switchboard add mcp account -- python -m tests.fixtures.account_server
 
 switchboard list
 switchboard index
-switchboard plan "comment on the failing test issue in acme/api"
+switchboard plan "comment on the failing test issue in acme/api" \
+  --input repo=acme/api --input message=reproduced
 switchboard serve                    # stdio, one client
 switchboard serve --http 127.0.0.1:8765   # daemon, many clients
 ```
@@ -108,7 +132,8 @@ OpenCode client config for the stdio gateway:
     "servers": {
       "switchboard": {
         "type": "local",
-        "command": ["switchboard", "serve"]
+        "command": ["switchboard", "serve"],
+        "codemode": false
       }
     }
   }
@@ -161,8 +186,7 @@ Two independent checks must agree: the path exists in the graph, and the types
 line up. If either fails, there is no plan.
 
 **Removal test.** With the graph empty, `find` returns `NoPlan`. There is no
-fallback catalog and no local ordering heuristic. That is a test in CI, not a
-claim in a paragraph.
+fallback catalog and no local ordering heuristic. A unit test covers it.
 
 **Transport.** HydraDB OSS 0.4.0, started with Docker Compose next to MinIO.
 One synchronous `POST /v1/graphs/default/query`; results are typed cells,
@@ -186,7 +210,8 @@ records from different sources, no vector search over the catalog.
 | 60-tool catalog | synthetic, our four fixture MCP servers |
 | Capability headers (`consumes` / `produces`) | our convention; real servers often lack output types |
 | Order validity and learning curve | measured on the fixture, with a baseline |
-| OpenCode baseline and gateway runs | real MCP sessions |
+| OpenCode gateway run | real MCP session, 2 tools, `find` + `run` succeeded |
+| OpenCode 60-tool baseline | blocked in v2.2.5; token cost measured at the MCP layer |
 | Auth, multi-tenancy, production hardening | not built. Stated as out of scope |
 | Landing page | static, no backend |
 
@@ -222,6 +247,9 @@ Each one is a product on its own and none of them makes the demo better.
 
 ## Docs
 
+- `docs/RESULTS.md`: measured curve, token cost, trap-route effect, A/B caveat
 - `docs/SPEC.md`: the product, the schema, the evals, the risks
 - `docs/PLAN.md`: the schedule, the gates, the pre-decided cut list
 - `docs/TESTING.md`: verified backend runbook, query cookbook, traps
+- `docs/LOOM.md`: demo recording script
+- `docs/SOCIAL.md`: submission post drafts

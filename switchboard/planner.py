@@ -47,11 +47,27 @@ def fetch_paths(hydra, sources, goal):
     return [row[0] for row in hydra.query(query)]
 
 
-def score(path, candidates):
+def components(path, candidates, uniform=False):
     keys = [node["properties"]["key"] for node in path["nodes"]]
-    weights = [relationship["properties"].get("weight") or 1.0 for relationship in path["relationships"]]
+    if uniform:
+        weights = [1.0] * len(path["relationships"])
+    else:
+        weights = [relationship["properties"].get("weight") or 1.0 for relationship in path["relationships"]]
     coverage = len(set(keys) & set(candidates))
-    return coverage * 2 + len(keys) * 0.5 + sum(weights) / len(weights)
+    return coverage, round(sum(weights) / len(weights), 3), len(keys)
+
+
+def choose(paths, candidates, uniform=False):
+    """Lexical shortlist, then learned rerank: BM25 picks plausible routes,
+    edge weights break ties, longer plans win before path order."""
+    scored = [(components(path, candidates, uniform), path) for path in paths]
+    best = max(coverage for (coverage, _, _), _ in scored)
+    shortlist = [
+        (weight, length, coverage, path)
+        for (coverage, weight, length), path in scored
+        if coverage >= best - 1
+    ]
+    return max(shortlist, key=lambda item: (item[0], item[1], item[2]))[3]
 
 
 def save(hydra, plan_id, task, steps):
@@ -80,7 +96,7 @@ def save(hydra, plan_id, task, steps):
         )
 
 
-def make(hydra, task, supplied=None):
+def make(hydra, task, supplied=None, uniform=False):
     supplied = supplied or {}
     tools = {tool["key"]: tool for tool in load_tools(hydra)}
     if not tools:
@@ -97,7 +113,7 @@ def make(hydra, task, supplied=None):
     if not paths:
         raise NoPlan(f"no FEEDS path to {goal}")
 
-    path = max(paths, key=lambda item: score(item, candidates))
+    path = choose(paths, candidates, uniform)
     chain = [node["properties"]["key"] for node in path["nodes"]]
     steps, required = binder.bind(tools, chain)
     error = validator.check(steps, tools)

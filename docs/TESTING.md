@@ -50,19 +50,22 @@ The product uses B1, B2, B3, B6, B11, B13, and B16. B8, B9, and B10 were
 verified but are not in the new P0 graph. They can return later for grants and
 audit.
 
-## 2. Not proven
+## 2. Product gates (2026-11-15)
 
-| # | Check | Blocked by |
-|---|---|---|
-| N1 | 60-tool fixture has six real 4-tool chains | fixture not built |
-| N2 | `switchboard index` seeds 60 tools and derived edges | CLI/index not built |
-| N3 | `find` / `run` MCP round-trip in a real client | gateway not built |
-| N4 | `switchboard add mcp` / `list` / `remove` / `serve` | CLI not built |
-| N5 | Removal test: empty graph means `NoPlan` | planner not built |
-| N6 | Baseline 60 vs gateway 2 in OpenCode | A/B not built |
-| N7 | 5-round learning curve on a holdout | evals not built |
-| N8 | HTTP daemon with two clients | HTTP not built |
-| N9 | Landing page, public repo, Loom | submission work |
+| # | Check | Result | Evidence |
+|---|---|---|---|
+| N1 | 60-tool fixture has six real 4-tool chains | PASS | `evals/chain_check.py` |
+| N2 | `index` seeds 60 tools and derived edges, twice | PASS | 60 tools, 69 edges both runs |
+| N3 | `find` / `run` round-trip in OpenCode v2.2.5 | PASS | 4-step plan `227123842785482`, `run` ok |
+| N4 | `add mcp` / `list` / `remove` / `serve` | PASS | echo server added, listed, removed; stdio and HTTP serve |
+| N5 | Removal test: empty graph means `NoPlan` | PASS | `tests/unit/test_bindings.py` |
+| N6 | Baseline 60 vs gateway 2 in OpenCode | PARTIAL | gateway path PASS; 60-tool direct baseline blocked by client, see section 5.4 |
+| N7 | 5-round learning curve on a holdout | PASS | `evals/results/latest.json` |
+| N8 | HTTP daemon with two concurrent clients | PASS | both saw 2 tools, both ran a 4-step plan |
+| N9 | Landing page, public repo, Loom | landing built; repo public; Loom recorded by the user |
+
+The learning curve, token measurements, trap-route effect, and the OpenCode
+caveat are written up in `docs/RESULTS.md`.
 
 ## 3. Stack runbook (verified)
 
@@ -150,121 +153,97 @@ comprehensions, `LOCAL_PATH` for writes, or Cypher index creation in 0.4.0.
 `MSpaths` omits pairs with no path. Join results back by endpoint id.
 `sourceValues` must be a literal list of validated keys, not a parameter.
 
-## 5. Gateway checks (target)
+## 5. Gateway checks (verified 2026-11-15)
 
-These are the checks to run once the CLI and gateway land. They are not proven
-yet.
+Run from the repo root with `.venv` active and
+`SWITCHBOARD_CONFIG=$PWD/evals/harness/switchboard.json` unless stated otherwise.
 
 ### CLI and config
 
 ```bash
-switchboard add mcp issues -- python -m tests.fixtures.issue_server
-switchboard list
-switchboard remove mcp issues
-switchboard add mcp issues -- python -m tests.fixtures.issue_server
+SWITCHBOARD_CONFIG=/tmp/opencode/cli-test.json \
+  switchboard add mcp echo -- .venv/bin/python -m tests.fixtures.echo_server
+SWITCHBOARD_CONFIG=/tmp/opencode/cli-test.json switchboard list
+SWITCHBOARD_CONFIG=/tmp/opencode/cli-test.json switchboard remove mcp echo
 ```
 
-Pass: the config file contains only the command, `list` prints the server and
-tool count, and no secret is written.
+Observed: `added echo: 2 tools`, then the server with its command, then
+`removed echo`. The config file contains only the command, and no secret is
+written. Tool counts in `list` come from the graph, so a new server shows
+`0 tools` until the next `index`.
 
 ### Index
 
 ```bash
 switchboard index
 switchboard index
+switchboard status
 ```
 
-Pass: 60 tools, the same node and edge counts on both runs, and no duplicate
-edges. Query back one cross-server `FEEDS` edge and one 4-tool path.
+Observed on both runs: `indexed 60 tools, 69 FEEDS edges`, then
+`servers=4 tools=60 edges=69`. Re-running does not duplicate nodes or edges,
+and does not reset learned weights. The `plans=N` field grows with `find` calls;
+index does not create plans.
 
 ### Plan
 
 ```bash
-switchboard plan "comment on the failing test issue in acme/api"
+switchboard plan "comment on the failing test issue in acme/api" \
+  --input repo=acme/api --input message=reproduced
 ```
 
-Pass: four tool keys in order, every step's consumed types produced earlier, a
-plan id printed, and `NoPlan` when the graph is empty.
+Observed: a plan id, `repo.repo_search -> repo.list_issues -> issue.get_issue ->
+issue.add_comment`, and an input list of `repo`, `message`. With an empty graph,
+`find` raises `NoPlan` (unit test `test_empty_graph_has_no_plan`).
 
 ### MCP round-trip
 
-Start the gateway:
-
 ```bash
-switchboard serve
+switchboard serve                    # stdio
+switchboard serve --http 127.0.0.1:8765   # HTTP daemon
 ```
 
-It speaks MCP over stdio, so a human shell is not the client. Use the OpenCode
-config below or an MCP inspector.
+`tools/list` returns exactly `find` and `run` on both transports. The HTTP
+daemon was tested with two concurrent MCP clients, each on its own session:
 
-Pass: `tools/list` returns exactly `find` and `run`; `find` returns a plan;
-`run` executes four upstream calls and returns four results.
+```
+A tools=['find', 'run'] plan=266372913974742 steps=4
+B tools=['find', 'run'] plan=235552781383402 steps=4
+A run ok=True steps=4 final="comment on acme/api#42: failing test in checkout: reproduced"
+B run ok=True steps=4 final="comment on acme/api#42: failing test in checkout: reproduced"
+```
 
 ### OpenCode baseline vs gateway
 
-Baseline config, in `evals/harness/baseline/opencode.json`:
+OpenCode reads project config from the git root, not from a subdirectory. The
+two ready configs are drop-ins:
 
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "servers": {
-      "issues": {
-        "type": "local",
-        "command": ["python", "-m", "tests.fixtures.issue_server"],
-        "codemode": false
-      },
-      "repo": {
-        "type": "local",
-        "command": ["python", "-m", "tests.fixtures.repo_server"],
-        "codemode": false
-      },
-      "incident": {
-        "type": "local",
-        "command": ["python", "-m", "tests.fixtures.incident_server"],
-        "codemode": false
-      },
-      "account": {
-        "type": "local",
-        "command": ["python", "-m", "tests.fixtures.account_server"],
-        "codemode": false
-      }
-    }
-  }
-}
-```
+- `evals/harness/baseline/opencode.json` (four fixture servers, `codemode: false`)
+- `evals/harness/gateway/opencode.json` (one gateway server, `codemode: false`)
 
-Gateway config, in `evals/harness/gateway/opencode.json`:
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "servers": {
-      "switchboard": {
-        "type": "local",
-        "command": ["switchboard", "serve"],
-        "codemode": false
-      }
-    }
-  }
-}
-```
-
-Run each from its own directory:
+Copy one to the repo root as `opencode.json`, then run from the repo root:
 
 ```bash
-cd evals/harness/baseline
-opencode mcp list
-opencode run --format json "comment on the failing test issue in acme/api"
+OPENCODE_DISABLE_AUTOUPDATE=1 opencode --standalone run --auto --format json \
+  -m opencode/deepseek-v4.1-flash-free \
+  "Task: comment on the failing test issue in acme/api. Inputs: repo=acme/api, message=reproduced. Use the switchboard find tool, then switchboard run with the plan_id and the same inputs."
 ```
 
-Pass: baseline exposes 60 native tools; gateway exposes 2; the gateway plan has
-4 steps and `run` executes them. Record tool calls, tokens, and errors.
+Gateway, observed: `mcp connected server=switchboard tools=2`; the model called
+`switchboard_find` (plan `227123842785482`, four steps) and `switchboard_run`
+(`ok: true`, four results, final result
+`comment on acme/api#42: failing test in checkout: reproduced`).
 
-`codemode: false` matters. With OpenCode's default Code Mode, MCP tools are
-grouped behind one executor, so the baseline's 60 tools are not a native tool
-list and the counter is not comparable. Turn it off on both sides.
+Baseline, observed: the four servers connect (`tools=15` each, 60 total), but
+OpenCode v2.2.5 does not put them in the model's tool catalog. A control server
+with two trivial tools stayed invisible too. This is a client limitation, not a
+gateway failure; the exact 60-vs-2 token cost is measured from the MCP
+`tools/list` payloads in `evals/baseline_tokens.py`. Do not claim a live
+60-native-tool model run. Full log of attempts: `docs/RESULTS.md`.
+
+`opencode mcp list` reports "No MCP servers configured" even when the debug log
+says `mcp connected`. Use `--print-logs --log-level debug` and look for
+`mcp connected`, or inspect the tool calls in `--format json` output.
 
 ## 6. Track and judging
 
@@ -328,7 +307,12 @@ LLM baseline. Never cut: removal test, eval numbers, BM25 baseline, honest
 - The fixture capability header is a convention, not MCP. Real servers need
   output types or a manifest. Say so.
 - OpenCode with default Code Mode groups MCP tools; set `codemode: false` for
-  both sides of the A/B.
+  both sides of the A/B. In v2.2.5 this surfaced the gateway's 2 tools but not
+  the fixture servers' tools, so the live 60-tool baseline is blocked.
+- HydraDB HTTP writes dedupe on `query_id`; the server's auto counter resets on
+  restart and can replay an old mutation. Send a unique id per write.
+- Round edge-weight updates before comparing paths. Three updates of 1.4 can
+  render as `1.3999999999999997` and lose to an equal-weight longer path.
 - The engine reports anonymous usage by default. Disable it for the demo.
 - The HydraDB image runs as uid 10001. Named volumes start root-owned; the init
   service must chown them or the container exits 1.

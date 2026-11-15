@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+import uuid
 
 import requests
 
@@ -48,7 +49,9 @@ class Hydra:
         )
 
     def query(self, cypher, parameters=None):
-        body = {"cell_id": self.cell_id, "query": cypher}
+        # HTTP mutations dedupe on query_id, and the server's auto counter resets
+        # on restart; send our own so a restart cannot replay an old mutation.
+        body = {"cell_id": self.cell_id, "query_id": f"switchboard-{uuid.uuid4().hex}", "query": cypher}
         if parameters is not None:
             body["parameters"] = parameters
         response = requests.post(

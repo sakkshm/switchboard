@@ -1,0 +1,27 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "repo": {
+        "type": "local",
+        "command": [".venv/bin/python", "-m", "tests.fixtures.repo_server"],
+        "codemode": false
+      },
+      "issue": {
+        "type": "local",
+        "command": [".venv/bin/python", "-m", "tests.fixtures.issue_server"],
+        "codemode": false
+      },
+      "incident": {
+        "type": "local",
+        "command": [".venv/bin/python", "-m", "tests.fixtures.incident_server"],
+        "codemode": false
+      },
+      "account": {
+        "type": "local",
+        "command": [".venv/bin/python", "-m", "tests.fixtures.account_server"],
+        "codemode": false
+      }
+    }
+  }
+}

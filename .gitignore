@@ -4,9 +4,12 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .ruff_cache/
-evals/results/
+evals/results/*
+!evals/results/latest.json
+!evals/results/tokens.json
 node_modules/
 .vercel/
+.playwright-mcp/
 
 .venv/
 *.egg-info/
