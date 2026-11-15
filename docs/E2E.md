@@ -80,10 +80,11 @@ has run.
 out=$(switchboard plan "comment on the failing test issue in acme/api" \
   --input repo=acme/api --input message=reproduced)
 echo "$out"
-# 0. repo.guess_repo   ...   <- trap
+#   0. repo.guess_repo            repo <- input      <- the trap
 switchboard run "$(echo "$out" | awk 'NR==1{print $2}')" \
   --input repo=acme/api --input message=reproduced
-# ok: false, step 0 raises "broken tool: guess_repo"
+#   fail 0. repo.guess_repo   Error executing tool guess_repo - RuntimeError: broken tool: guess_repo
+# exit 1
 ```
 
 Run the same task a few times (step 6) and the planner switches to the real
@@ -92,11 +93,11 @@ route, then succeeds:
 ```bash
 out=$(switchboard plan "comment on the failing test issue in acme/api" \
   --input repo=acme/api --input message=reproduced)
-# 0. repo.repo_search -> repo.list_issues -> issue.get_issue -> issue.add_comment
+#   0. repo.repo_search -> repo.list_issues -> issue.get_issue -> issue.add_comment
 switchboard run "$(echo "$out" | awk 'NR==1{print $2}')" \
   --input repo=acme/api --input message=reproduced
-# "ok": true, ending in
-# comment on acme/api#42: failing test in checkout: reproduced
+# done: 4/4 steps ok
+# result: comment on acme/api#42: failing test in checkout: reproduced
 ```
 
 Also check the missing-input path:
@@ -269,7 +270,7 @@ Remove `opencode.json` when done (it is git-ignored).
 | `plan`, multi-step order | four-step chain | 5 |
 | `plan`, missing inputs | `missing: ...` | 5 |
 | `run`, failure on the trap | trap route fails, edge decays | 5 |
-| `run`, success after learning | `ok: true` | 5, 6 |
+| `run`, success after learning | `done: 4/4 steps ok` | 5, 6 |
 | Learning loop | real edge 2.0, trap edge 0.6 | 6 |
 | MCP surface, stdio | exactly `find`, `run` | 7 |
 | MCP surface, HTTP, concurrent | two clients both `ok` | 7 |

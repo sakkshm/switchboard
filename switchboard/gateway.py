@@ -1,5 +1,6 @@
 """The two-tool MCP surface: `find` returns a plan, `run` executes it."""
 
+import json
 import sys
 from itertools import pairwise
 
@@ -58,7 +59,7 @@ async def execute(hydra, plan, inputs, learn=True):
                 "results": results,
             }
         arguments = binder.resolve_args(step["args"], inputs, results)
-        log(f"step {step['i']} {step['tool']} args={arguments}")
+        log(f"step {step['i'] + 1}/{len(plan['steps'])} {step['tool']} {json.dumps(arguments)}")
         try:
             results.append(await call(server, tool["name"], arguments))
         except Exception as exc:

@@ -58,6 +58,7 @@ def add_mcp(args):
     print(f"added {args.name}: {len(tools)} tools")
     for tool in tools:
         print(f"  {tool['key']}  consumes={tool['consumes']} produces={tool['produces']}")
+    print("run switchboard index to write them into the graph")
     return 0
 
 
@@ -221,30 +222,75 @@ def infer_annotate(args):
     return 0
 
 
+def source_of(reference, steps):
+    """Human name of where a step's argument comes from."""
+    if reference.startswith("$input."):
+        return "input"
+    if reference.startswith("$steps."):
+        return steps[int(reference.split(".")[1])]["tool"]
+    return reference
+
+
+def preview(value, limit=90):
+    """One short line for a step result, whatever shape it has."""
+    text = value if isinstance(value, str) else json.dumps(value, default=str)
+    text = " ".join(text.split())
+    return text if len(text) <= limit else text[: limit - 1] + "..."
+
+
 def plan_command(args):
     current = config.load()
+    supplied = pairs(args.input)
     try:
-        result = planner.make(Hydra.from_config(current), args.task, pairs(args.input))
+        result = planner.make(Hydra.from_config(current), args.task, supplied)
     except planner.NoPlan as exc:
         return fail(f"NoPlan: {exc}")
     print(f"plan {result['plan_id']}  goal {result['goal']}")
+    print(f"  task: {args.task}")
     for step in result["steps"]:
-        print(f"{step['i']}. {step['tool']:24} {json.dumps(step['args'])}")
+        flows = ", ".join(
+            f"{name} <- {source_of(reference, result['steps'])}"
+            for name, reference in step["args"].items()
+        )
+        print(f"  {step['i']}. {step['tool']:26} {flows}")
     print(f"inputs: {', '.join(result['inputs']) or 'none'}")
     if result["missing_inputs"]:
         print(f"missing: {', '.join(result['missing_inputs'])}")
+    flags = " ".join(f"--input {name}={supplied.get(name, '...')}" for name in result["inputs"])
+    print(f"run: switchboard run {result['plan_id']} {flags}".rstrip())
     return 0
 
 
 def run_command(args):
     current = config.load()
+    hydra = Hydra.from_config(current)
     try:
-        plan = planner.load(Hydra.from_config(current), args.plan_id)
+        plan = planner.load(hydra, args.plan_id)
     except planner.NoPlan as exc:
         return fail(str(exc))
-    result = asyncio.run(gateway.execute(Hydra.from_config(current), plan, pairs(args.input)))
-    print(json.dumps(result, indent=2))
-    return 0 if result["ok"] else 1
+    steps = plan["steps"]
+    print(f"plan {plan['plan_id']}  {plan['task']}", flush=True)
+    result = asyncio.run(gateway.execute(hydra, plan, pairs(args.input)))
+    done = result.get("results", [])
+    failed = result.get("failed_step")
+    for step in steps:
+        if step["i"] < len(done):
+            print(f"  ok   {step['i']}. {step['tool']:26} {preview(done[step['i']])}")
+        elif step["i"] == failed:
+            print(f"  fail {step['i']}. {step['tool']:26} {result.get('error', '')}")
+        else:
+            break
+    if result["ok"]:
+        print(f"done: {len(steps)}/{len(steps)} steps ok")
+        if done:
+            print(f"result: {preview(done[-1], 300)}")
+        return 0
+    if result.get("missing_inputs"):
+        return fail(f"missing inputs: {', '.join(result['missing_inputs'])}")
+    failed_tool = steps[failed]["tool"] if failed is not None else "?"
+    print(f"stopped at step {failed} of {len(steps)}: {failed_tool}")
+    print(f"that edge lost 0.2 weight; run `switchboard plan {json.dumps(plan['task'])}` again")
+    return 1
 
 
 def serve_command(args):
@@ -324,14 +370,16 @@ def build_parser():
     annotate_parser.add_argument("--server", help="limit --infer to one server")
     annotate_parser.set_defaults(handler=annotate)
 
-    plan = sub.add_parser("plan")
+    plan = sub.add_parser("plan", help="find an ordered tool plan for a task")
     plan.add_argument("task")
-    plan.add_argument("--input", action="append", default=[])
+    plan.add_argument("--input", action="append", default=[], metavar="NAME=VALUE",
+                      help="data you already have; optional, used to pick the route that fits")
     plan.set_defaults(handler=plan_command)
 
-    run = sub.add_parser("run")
+    run = sub.add_parser("run", help="execute a plan by id")
     run.add_argument("plan_id")
-    run.add_argument("--input", action="append", default=[])
+    run.add_argument("--input", action="append", default=[], metavar="NAME=VALUE",
+                      help="one for each input the plan reports it needs")
     run.set_defaults(handler=run_command)
 
     serve = sub.add_parser("serve")
