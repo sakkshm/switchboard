@@ -15,7 +15,7 @@ returns an ordered plan, and learns edge weights from execution.
 Holdout success 0.33 -> 1.00 after one training round.
 
 Open source, HydraDB OSS + MinIO:
-github.com/sakkshm/switchboard
+github.com/sakkshm/switchboard/tree/agent/gateway
 
 ## LinkedIn
 
@@ -53,7 +53,7 @@ Tested as a real MCP client in OpenCode, over stdio and over an HTTP daemon with
 two concurrent clients. The fixtures and eval harness are in the repo so the
 numbers can be reproduced.
 
-Repo: github.com/sakkshm/switchboard
+Repo: github.com/sakkshm/switchboard/tree/agent/gateway
 Demo: [Loom link]
 
 Built with HydraDB OSS 0.4.0 and MinIO. The catalog is synthetic; the graph,

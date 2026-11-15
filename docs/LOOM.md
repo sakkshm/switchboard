@@ -98,7 +98,7 @@ schemas. OpenCode v2.2.5 would not surface the raw fixture tools for a live
 ## 2:50 - Close (10 s)
 
 Say: "HydraDB OSS and MinIO, one gateway, any MCP client. Repo is
-github.com/sakkshm/switchboard. Thanks."
+github.com/sakkshm/switchboard, branch agent slash gateway. Thanks."
 
 Show: the repository URL and the footer.
 
