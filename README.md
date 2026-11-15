@@ -113,10 +113,10 @@ docker compose up -d                 # HydraDB OSS 0.4.0 + MinIO
 ./install.sh                         # venv + editable install + `switchboard` on PATH
 switchboard status                   # HydraDB ready=True
 
-switchboard add mcp issue -- python -m tests.fixtures.issue_server
-switchboard add mcp repo -- python -m tests.fixtures.repo_server
-switchboard add mcp incident -- python -m tests.fixtures.incident_server
-switchboard add mcp account -- python -m tests.fixtures.account_server
+switchboard add mcp issue -- .venv/bin/python -m tests.fixtures.issue_server
+switchboard add mcp repo -- .venv/bin/python -m tests.fixtures.repo_server
+switchboard add mcp incident -- .venv/bin/python -m tests.fixtures.incident_server
+switchboard add mcp account -- .venv/bin/python -m tests.fixtures.account_server
 
 switchboard list
 switchboard index
@@ -129,6 +129,10 @@ switchboard serve --http 127.0.0.1:8765   # daemon, many clients
 `install.sh` builds `.venv`, installs this repo editable, and symlinks the
 `switchboard` command into `~/.local/bin` (override with `BIN_DIR=... ./install.sh`).
 If that directory is not on your `PATH`, it prints the one `export` line to add.
+
+The fixture servers above are launched with `.venv/bin/python`, so they work
+without activating. Activate the venv (`. .venv/bin/activate`) if you prefer bare
+`python` and `pytest`.
 
 Doing it by hand instead:
 

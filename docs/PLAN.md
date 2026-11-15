@@ -377,10 +377,10 @@ cp .env.example .env
 docker compose up -d --wait                # G0
 ./install.sh                               # venv + `switchboard` on PATH
 .venv/bin/python evals/chain_check.py      # G2
-switchboard add mcp issues -- python -m tests.fixtures.issue_server
-switchboard add mcp repo -- python -m tests.fixtures.repo_server
-switchboard add mcp incident -- python -m tests.fixtures.incident_server
-switchboard add mcp account -- python -m tests.fixtures.account_server
+switchboard add mcp issues -- .venv/bin/python -m tests.fixtures.issue_server
+switchboard add mcp repo -- .venv/bin/python -m tests.fixtures.repo_server
+switchboard add mcp incident -- .venv/bin/python -m tests.fixtures.incident_server
+switchboard add mcp account -- .venv/bin/python -m tests.fixtures.account_server
 switchboard index                # G3
 switchboard plan "comment on the failing test issue in acme/api"
 switchboard serve                # OpenCode launches this
