@@ -230,14 +230,16 @@
     <div class="card">
       <div class="n">HOLDOUT SUCCESS</div>
       <div class="curve">
-        1.00 |          <b>*-----*-----*-----*-----*</b><br>
-        0.33 |    <b>*-----*</b><br>
-        0.00 | <b>*</b><br>
-             +----+-----+-----+-----+-----+-----+<br>
+        1.00 |       <b>*</b>     <b>*</b>     <b>*</b>     <b>*</b>     <b>*</b><br>
+        0.33 | <b>*</b>     .     .     .     .     .<br>
+        0.00 | x<br>
+             +-----+-----+-----+-----+-----+-----+<br>
                 r0    r1    r2    r3    r4    r5
       </div>
       <p class="note">
-        One training round moves the holdout from 2/6 to 6/6. Later rounds hold.
+        Stars: learned graph, r0 at 0.33 then 1.00 from r1. Dots: uniform graph,
+        flat at 0.33. x: BM25 at 0.00. One training round moves the holdout
+        from 2/6 to 6/6.
       </p>
     </div>
   </div>
