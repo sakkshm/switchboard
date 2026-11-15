@@ -322,7 +322,7 @@ switchboard run <plan_id> --input owner=sakkshm --input repo=switchboard --input
 ```
 
 Each successful run raises its edge weight; `switchboard graph` shows
-`fetch.fetch -> filesystem.write_file  weight=1.8` after three runs (cap 2.0).
+`fetch.fetch -> filesystem.write_file  weight=1.6` after three runs (cap 2.0).
 Both `fetch.fetch` and `github.get_file_contents` produce `content`, so the same
 goal is reachable from either. The planner breaks that tie toward the route whose
 inputs the caller supplied - a `url` selects `fetch`, an `owner`/`repo` selects

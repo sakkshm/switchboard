@@ -215,7 +215,7 @@ out=$(.venv/bin/switchboard plan "download README.md from a GitHub repository an
 # github.get_file_contents -> filesystem.write_file, live from the GitHub API
 
 .venv/bin/switchboard graph
-# the used edge weight climbs 1.2 -> 1.8 over three runs
+# the used edge weight climbs 1.0 -> 1.6 over three runs
 ```
 
 Both sources produce `content`, so the same goal is reachable from `fetch` and

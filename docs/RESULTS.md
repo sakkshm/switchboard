@@ -208,7 +208,7 @@ deterministic across re-indexes instead of depending on path order.
 
 The learning loop ran on real edges too: three successful
 `fetch.fetch -> filesystem.write_file` runs raised its weight 1.0 -> 1.2 ->
-1.4 -> 1.6 -> 1.8 (cap 2.0), read back with `switchboard graph`. `docs/TESTING.md`
+1.4 -> 1.6 (cap 2.0), read back with `switchboard graph`. `docs/TESTING.md`
 has the transcript.
 
 ## Reproduce
