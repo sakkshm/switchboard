@@ -1,0 +1,12 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "switchboard": {
+        "type": "local",
+        "command": [".venv/bin/switchboard", "serve"],
+        "codemode": false
+      }
+    }
+  }
+}
