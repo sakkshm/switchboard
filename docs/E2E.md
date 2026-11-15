@@ -1,8 +1,9 @@
 # End-to-end runbook
 
 Every feature, in order, from a clean checkout. Run from the repo root after
-`./install.sh` (venv + editable install + `switchboard` on your PATH); every
-command below uses the bare name.
+`./install.sh` (venv + editable install + `switchboard` on your PATH), so every
+`switchboard` command below uses the bare name. Python entry points stay
+`.venv/bin/python`, or activate the venv first.
 
 Two tracks prove the same code path:
 
@@ -19,7 +20,7 @@ Two tracks prove the same code path:
 ```bash
 cp .env.example .env
 docker compose up -d --wait
-.venv/bin/switchboard status
+switchboard status
 # HydraDB http://127.0.0.1:18443  ready=True
 # servers=4 tools=... edges=... plans=...
 ```
@@ -29,7 +30,7 @@ docker compose up -d --wait
 ```bash
 .venv/bin/ruff check .
 .venv/bin/pytest -q
-# 14 passed
+# 19 passed
 ```
 
 Covers the removal test (`NoPlan` on an empty graph), the binder, the capability
@@ -40,12 +41,12 @@ file-read unwrap.
 
 ```bash
 export SWITCHBOARD_CONFIG=/tmp/opencode/e2e-cli.json
-.venv/bin/switchboard add mcp echo -- .venv/bin/python -m tests.fixtures.echo_server
-.venv/bin/switchboard list
-.venv/bin/switchboard remove mcp echo
+switchboard add mcp echo -- .venv/bin/python -m tests.fixtures.echo_server
+switchboard list
+switchboard remove mcp echo
 
-.venv/bin/switchboard add mcp ctx --url https://mcp.context7.com/mcp
-.venv/bin/switchboard remove mcp ctx
+switchboard add mcp ctx --url https://mcp.context7.com/mcp
+switchboard remove mcp ctx
 ```
 
 Expect `added echo: 2 tools`, the server line, `removed echo`, then
@@ -56,12 +57,12 @@ config file holds the command only, never a secret.
 
 ```bash
 export SWITCHBOARD_CONFIG=$PWD/evals/harness/switchboard.json
-.venv/bin/switchboard reset --yes
-.venv/bin/switchboard index
-.venv/bin/switchboard index          # idempotent
-.venv/bin/switchboard status
-.venv/bin/switchboard tools | tail -2
-.venv/bin/switchboard graph | tail -2
+switchboard reset --yes
+switchboard index
+switchboard index          # idempotent
+switchboard status
+switchboard tools | tail -2
+switchboard graph | tail -2
 ```
 
 Expect `indexed 60 tools, 69 FEEDS edges` on both runs (no duplicates, weights
@@ -76,11 +77,11 @@ the fixture - a plausible route the graph cannot tell from the real one until it
 has run.
 
 ```bash
-out=$(.venv/bin/switchboard plan "comment on the failing test issue in acme/api" \
+out=$(switchboard plan "comment on the failing test issue in acme/api" \
   --input repo=acme/api --input message=reproduced)
 echo "$out"
 # 0. repo.guess_repo   ...   <- trap
-.venv/bin/switchboard run "$(echo "$out" | awk 'NR==1{print $2}')" \
+switchboard run "$(echo "$out" | awk 'NR==1{print $2}')" \
   --input repo=acme/api --input message=reproduced
 # ok: false, step 0 raises "broken tool: guess_repo"
 ```
@@ -89,10 +90,10 @@ Run the same task a few times (step 6) and the planner switches to the real
 route, then succeeds:
 
 ```bash
-out=$(.venv/bin/switchboard plan "comment on the failing test issue in acme/api" \
+out=$(switchboard plan "comment on the failing test issue in acme/api" \
   --input repo=acme/api --input message=reproduced)
 # 0. repo.repo_search -> repo.list_issues -> issue.get_issue -> issue.add_comment
-.venv/bin/switchboard run "$(echo "$out" | awk 'NR==1{print $2}')" \
+switchboard run "$(echo "$out" | awk 'NR==1{print $2}')" \
   --input repo=acme/api --input message=reproduced
 # "ok": true, ending in
 # comment on acme/api#42: failing test in checkout: reproduced
@@ -101,7 +102,7 @@ out=$(.venv/bin/switchboard plan "comment on the failing test issue in acme/api"
 Also check the missing-input path:
 
 ```bash
-.venv/bin/switchboard plan "comment on the failing test issue in acme/api"
+switchboard plan "comment on the failing test issue in acme/api"
 # ... missing: repo, message
 ```
 
@@ -111,11 +112,11 @@ The trap and the real first hop both feed `repo.list_issues`. After a reset both
 edges weigh 1.0; running the task moves them apart.
 
 ```bash
-.venv/bin/switchboard graph | grep -E 'guess_repo -> repo.list_issues|repo_search -> repo.list_issues'
+switchboard graph | grep -E 'guess_repo -> repo.list_issues|repo_search -> repo.list_issues'
 # repo.guess_repo  -> repo.list_issues  weight=1.0
 # repo.repo_search -> repo.list_issues  weight=1.0
 # run the plan from step 5 until it succeeds (a few rounds)
-.venv/bin/switchboard graph | grep -E 'guess_repo -> repo.list_issues|repo_search -> repo.list_issues'
+switchboard graph | grep -E 'guess_repo -> repo.list_issues|repo_search -> repo.list_issues'
 # repo.guess_repo  -> repo.list_issues  weight=0.6   (failed, decayed)
 # repo.repo_search -> repo.list_issues  weight=2.0   (succeeded, at cap)
 ```
@@ -148,8 +149,8 @@ graph 1.00 from round 1, stable to round 5, zero spread across 3 replicates.
 `baseline_tokens.py` prints the 32.3x schema-token reduction.
 
 ```bash
-.venv/bin/switchboard reset --yes
-.venv/bin/switchboard plan "comment on the failing test issue in acme/api"
+switchboard reset --yes
+switchboard plan "comment on the failing test issue in acme/api"
 # switchboard: NoPlan: the tool graph is empty; run switchboard index
 ```
 
@@ -161,16 +162,16 @@ export GITHUB_TOKEN=$(gh auth token)
 mkdir -p /tmp/opencode/real-demo
 docker pull ghcr.io/github/github-mcp-server:latest
 
-.venv/bin/switchboard add mcp filesystem -- npx -y @modelcontextprotocol/server-filesystem /tmp/opencode/real-demo
-.venv/bin/switchboard add mcp fetch -- uvx mcp-server-fetch
-.venv/bin/switchboard add mcp github --env 'GITHUB_PERSONAL_ACCESS_TOKEN={env:GITHUB_TOKEN}' -- \
+switchboard add mcp filesystem -- npx -y @modelcontextprotocol/server-filesystem /tmp/opencode/real-demo
+switchboard add mcp fetch -- uvx mcp-server-fetch
+switchboard add mcp github --env 'GITHUB_PERSONAL_ACCESS_TOKEN={env:GITHUB_TOKEN}' -- \
   docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN -e GITHUB_TOOLSETS=repos,issues \
   ghcr.io/github/github-mcp-server
 
-.venv/bin/switchboard reset --yes
-.venv/bin/switchboard annotate --infer     # or declare the edges by hand
-.venv/bin/switchboard index
-.venv/bin/switchboard graph
+switchboard reset --yes
+switchboard annotate --infer     # or declare the edges by hand
+switchboard index
+switchboard graph
 ```
 
 `annotate --infer` asks a model which tools return a payload another tool can
@@ -182,12 +183,12 @@ tool whose essential parameter is optional in its schema (GitHub's
 To declare a precise four-edge diamond by hand instead:
 
 ```bash
-.venv/bin/switchboard annotate fetch fetch --consumes url --produces content
-.venv/bin/switchboard annotate github get_file_contents --consumes owner,repo,path --produces content
-.venv/bin/switchboard annotate filesystem write_file --consumes path,content
-.venv/bin/switchboard annotate filesystem append_file --consumes path,content
-.venv/bin/switchboard index
-.venv/bin/switchboard graph
+switchboard annotate fetch fetch --consumes url --produces content
+switchboard annotate github get_file_contents --consumes owner,repo,path --produces content
+switchboard annotate filesystem write_file --consumes path,content
+switchboard annotate filesystem append_file --consumes path,content
+switchboard index
+switchboard graph
 ```
 
 That gives 46 tools and 4 edges: `fetch.fetch` feeds both `filesystem.write_file`
@@ -197,25 +198,25 @@ and `filesystem.append_file`, and `github.get_file_contents` feeds both, all
 ```bash
 rm -f /tmp/opencode/real-demo/example.html /tmp/opencode/real-demo/log.txt
 
-out=$(.venv/bin/switchboard plan "fetch a web page and write it to a local file" \
+out=$(switchboard plan "fetch a web page and write it to a local file" \
   --input url=https://example.com --input path=/tmp/opencode/real-demo/example.html)
-.venv/bin/switchboard run "$(echo "$out" | awk 'NR==1{print $2}')" \
+switchboard run "$(echo "$out" | awk 'NR==1{print $2}')" \
   --input url=https://example.com --input path=/tmp/opencode/real-demo/example.html
 wc -c /tmp/opencode/real-demo/example.html      # 208, live from example.com
 
-out=$(.venv/bin/switchboard plan "fetch a web page and append it to a local log file" \
+out=$(switchboard plan "fetch a web page and append it to a local log file" \
   --input url=https://example.com --input path=/tmp/opencode/real-demo/log.txt)
-.venv/bin/switchboard run "$(echo "$out" | awk 'NR==1{print $2}')" \
+switchboard run "$(echo "$out" | awk 'NR==1{print $2}')" \
   --input url=https://example.com --input path=/tmp/opencode/real-demo/log.txt
 wc -c /tmp/opencode/real-demo/log.txt           # 208, appended
 
-out=$(.venv/bin/switchboard plan "download README.md from a GitHub repository and write it to a local file" \
+out=$(switchboard plan "download README.md from a GitHub repository and write it to a local file" \
   --input owner=sakkshm --input repo=switchboard --input path=README.md)
-.venv/bin/switchboard run "$(echo "$out" | awk 'NR==1{print $2}')" \
+switchboard run "$(echo "$out" | awk 'NR==1{print $2}')" \
   --input owner=sakkshm --input repo=switchboard --input path=README.md
 # github.get_file_contents -> filesystem.write_file, live from the GitHub API
 
-.venv/bin/switchboard graph
+switchboard graph
 # the used edge weight climbs 1.0 -> 1.6 over three runs
 ```
 
@@ -261,7 +262,7 @@ Remove `opencode.json` when done (it is git-ignored).
 | Feature | Check | Step |
 |---|---|---|
 | Graph store up | `status` shows `ready=True` | 1 |
-| Unit tests, lint | `ruff` clean, `pytest` 14 passed | 2 |
+| Unit tests, lint | `ruff` clean, `pytest` 19 passed | 2 |
 | `add` / `list` / `remove`, both transports | tool counts printed | 3 |
 | `index`, idempotent | `60 tools, 69 edges` twice | 4 |
 | `tools`, `graph` | counts and weights listed | 4 |
