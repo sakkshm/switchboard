@@ -15,7 +15,7 @@ returns an ordered plan, and learns edge weights from execution.
 Holdout success 0.33 -> 1.00 after one training round.
 
 Open source, HydraDB OSS + MinIO:
-github.com/sakkshm/switchboard/tree/agent/gateway
+github.com/sakkshm/switchboard
 
 ## LinkedIn
 
@@ -56,7 +56,7 @@ Docker. 46 tools indexed; the declared chains fetched a live web page and a live
 GitHub README and wrote both to disk, and repeated runs raised the HydraDB edge
 weight 1.0 -> 1.6. The eval harness is in the repo so the numbers reproduce.
 
-Repo: github.com/sakkshm/switchboard/tree/agent/gateway
+Repo: github.com/sakkshm/switchboard
 Demo: [Loom link]
 
 Built with HydraDB OSS 0.4.0 and MinIO. The 60-tool learning-curve catalog is
