@@ -8,7 +8,7 @@ from collections import Counter
 
 import requests
 
-from . import config, gateway, index, infer, planner
+from . import config, dashboard, gateway, index, infer, planner
 from .hydra import Hydra
 
 
@@ -385,6 +385,10 @@ def build_parser():
     serve = sub.add_parser("serve")
     serve.add_argument("--http")
     serve.set_defaults(handler=serve_command)
+
+    dash = sub.add_parser("dashboard", help="serve local metrics and eval results")
+    dash.add_argument("--http", default="127.0.0.1:8000")
+    dash.set_defaults(handler=dashboard.dashboard_command)
 
     return parser
 

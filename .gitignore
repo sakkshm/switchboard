@@ -8,6 +8,7 @@ evals/results/*
 !evals/results/latest.json
 !evals/results/tokens.json
 node_modules/
+site/
 .vercel/
 .playwright-mcp/
 opencode.json
