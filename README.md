@@ -353,6 +353,7 @@ Each one is a product on its own and none of them makes the demo better.
 ## Docs
 
 - `docs/E2E.md`: end-to-end runbook, every feature with expected output
+- `docs/DEMO.md`: demo script - commands to run and show, fixture and real, plus the TUI
 - `docs/RESULTS.md`: measured curve, token cost, trap-route effect, A/B caveat
 - `docs/SPEC.md`: the product, the schema, the evals, the risks
 - `docs/PLAN.md`: the schedule, the gates, the pre-decided cut list
