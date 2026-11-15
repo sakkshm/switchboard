@@ -110,9 +110,7 @@ latency, and the A/B caveat: `docs/RESULTS.md`. Raw: `evals/results/`.
 cp .env.example .env
 docker compose up -d                 # HydraDB OSS 0.4.0 + MinIO
 
-python -m venv .venv
-.venv/bin/pip install -e ".[dev]"    # use the venv's pip, not the system one
-. .venv/bin/activate                 # bare `switchboard` from here on
+./install.sh                         # venv + editable install + `switchboard` on PATH
 switchboard status                   # HydraDB ready=True
 
 switchboard add mcp issue -- python -m tests.fixtures.issue_server
@@ -128,10 +126,15 @@ switchboard serve                    # stdio, one client
 switchboard serve --http 127.0.0.1:8765   # daemon, many clients
 ```
 
-No venv on your PATH? Either activate it (`. .venv/bin/activate`), or link the
-one command out:
+`install.sh` builds `.venv`, installs this repo editable, and symlinks the
+`switchboard` command into `~/.local/bin` (override with `BIN_DIR=... ./install.sh`).
+If that directory is not on your `PATH`, it prints the one `export` line to add.
+
+Doing it by hand instead:
 
 ```bash
+python -m venv .venv
+.venv/bin/pip install -e ".[dev]"    # the venv's pip, not the system one
 ln -s "$PWD/.venv/bin/switchboard" ~/.local/bin/switchboard
 ```
 

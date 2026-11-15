@@ -375,8 +375,7 @@ what is mocked.
 ```bash
 cp .env.example .env
 docker compose up -d --wait                # G0
-python -m venv .venv
-.venv/bin/pip install -e ".[dev]"
+./install.sh                               # venv + `switchboard` on PATH
 .venv/bin/python evals/chain_check.py      # G2
 .venv/bin/switchboard add mcp issues -- python -m tests.fixtures.issue_server
 .venv/bin/switchboard add mcp repo -- python -m tests.fixtures.repo_server

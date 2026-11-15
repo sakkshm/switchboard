@@ -1,8 +1,8 @@
 # End-to-end runbook
 
-Every feature, in order, from a clean checkout. Run from the repo root with the
-venv built (`python -m venv .venv && .venv/bin/pip install -e ".[dev]"`). With
-the venv active, drop the `.venv/bin/` prefix from every command below.
+Every feature, in order, from a clean checkout. Run from the repo root after
+`./install.sh` (venv + editable install + `switchboard` on your PATH); every
+command below uses the bare name.
 
 Two tracks prove the same code path:
 

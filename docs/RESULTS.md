@@ -217,8 +217,7 @@ has the transcript.
 cp .env.example .env
 docker compose up -d --wait
 
-python -m venv .venv
-.venv/bin/pip install -e ".[dev]"
+./install.sh
 
 export SWITCHBOARD_CONFIG=$PWD/evals/harness/switchboard.json
 switchboard index
