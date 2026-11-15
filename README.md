@@ -85,10 +85,18 @@ the learning curve. No web UI is required to see the difference.
 
 | Mode | Holdout success | Order validity |
 |---|---|---|
-| BM25, no graph | 0.00 | 0.00 |
+| BM25, top-4 relevance (naive) | 0.00 | 0.00 |
+| BM25, goal + producer + dependency order (fair) | 0.08 | 0.96 |
 | Uniform graph | 0.33 | 1.00 |
 | Learned graph, round 1 | 1.00 | 1.00 |
 | Learned graph, round 5 | 1.00 | 1.00 |
+
+Two BM25 baselines, so the delta is not a strawman. The naive one is the top-4
+tools by relevance, run in that order. The fair one uses BM25 for goal selection,
+picks the best-ranked producer for each missing input type, and orders the chain
+by data dependency - retrieval plus ordering, no graph and no weights. It still
+scores 0.08: BM25 names the right goal first for every task, but it fills the
+rest of the chain with relevance neighbours, not producers.
 
 The graph supplies order. The learned `FEEDS` weights pick the route: four
 fixture families contain a trap sibling with identical types that fails at
@@ -142,30 +150,56 @@ switchboard tools                # every indexed tool and its types
 switchboard graph                # every FEEDS edge and its learned weight
 ```
 
-MCP publishes no dependency types, so a real tool has no edges until you say
-what it consumes and produces:
+MCP publishes no dependency types, so a real tool has no edges until the gateway
+learns what it consumes and produces. Let a model infer them, one command for
+every server:
+
+```bash
+switchboard annotate --infer     # layer 1 reads the schemas, layer 2 names the data types
+switchboard index                # the same branch, discovered instead of declared
+```
+
+`--infer` takes each tool's required input parameters as `consumes`, then asks a
+model which tools return a payload another tool can take (`produces`). It finds
+the `fetch` branch, which no output schema reveals, with no hand annotation. A
+tool whose essential parameter is optional in its schema (GitHub's
+`get_file_contents` needs `path`) still needs one manual `annotate` to bind it.
+The backend is the local `opencode` CLI; `SWITCHBOARD_LLM_CMD` replaces the
+command and `SWITCHBOARD_LLM_MODEL` sets the model. Precedence is header, then
+manual `annotate`, then inferred.
+
+Or declare the types by hand:
 
 ```bash
 switchboard annotate fetch fetch --consumes url --produces content
 switchboard annotate github get_file_contents --consumes owner,repo,path --produces content
 switchboard annotate filesystem write_file --consumes path,content
+switchboard annotate filesystem append_file --consumes path,content
 ```
 
-`plan` then `run` execute the declared chains against the live services:
+Either way the graph gets a real branch: `fetch.fetch` feeds both `write_file`
+and `append_file` (4 edges in all). `plan` then `run` execute the declared chains
+against the live services:
 
 ```bash
-switchboard plan "fetch a web page and save it to a local file" \
+switchboard plan "fetch a web page and write it to a local file" \
   --input url=https://example.com --input path=/tmp/opencode/real-demo/example.html
 switchboard run <plan_id> --input url=https://example.com --input path=/tmp/opencode/real-demo/example.html
 
-switchboard plan "download README.md from a GitHub repository and save it to a local file" \
+switchboard plan "fetch a web page and append it to a local log file" \
+  --input url=https://example.com --input path=/tmp/opencode/real-demo/log.txt
+switchboard run <plan_id> --input url=https://example.com --input path=/tmp/opencode/real-demo/log.txt
+
+switchboard plan "download README.md from a GitHub repository and write it to a local file" \
   --input owner=sakkshm --input repo=switchboard --input path=README.md
 switchboard run <plan_id> --input owner=sakkshm --input repo=switchboard --input path=README.md
 ```
 
-Each successful run raises the weight on the edges it used, so `switchboard
-graph` shows `fetch.fetch -> filesystem.write_file  weight=1.8` after three
-runs. `docs/TESTING.md` has the full transcript.
+Two servers both produce `content`, so `fetch.fetch` and `github.get_file_contents`
+can both reach the same goal. The planner breaks that tie toward the route whose
+inputs the caller supplied: with a `url` it picks `fetch`, with `owner`/`repo` it
+picks GitHub. Each successful run raises the weight on the edges it used.
+`docs/TESTING.md` has the full transcript.
 
 OpenCode client config for the stdio gateway. The tested variant is
 `evals/harness/gateway/opencode.json`: copy it to the repo root as
@@ -254,7 +288,7 @@ records from different sources, no vector search over the catalog.
 | HydraDB graph, traversal, plans, edge weights | real, OSS 0.4.0 |
 | CLI, gateway, planner, binder, executor | real |
 | 60-tool catalog | synthetic, our four fixture MCP servers |
-| Capability headers (`consumes` / `produces`) | our convention; MCP publishes none, so real servers declare them with `switchboard annotate` |
+| Capability headers (`consumes` / `produces`) | our convention; MCP publishes none, so real servers declare them with `switchboard annotate`, or `annotate --infer` reads the schemas and asks a model |
 | Order validity and learning curve | measured on the fixture, with a baseline |
 | Real servers (filesystem, fetch, github) | real MCP sessions; `find` + `run` wrote a fetched page and a live GitHub README to disk |
 | OpenCode gateway run | real MCP session, 2 tools, `find` + `run` succeeded |

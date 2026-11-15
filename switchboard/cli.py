@@ -9,7 +9,7 @@ from collections import Counter
 
 import requests
 
-from . import config, gateway, index, planner
+from . import config, gateway, index, infer, planner
 from .hydra import Hydra
 
 
@@ -156,7 +156,11 @@ def reset_command(args):
 
 
 def annotate(args):
+    if args.infer:
+        return infer_annotate(args)
     current = config.load()
+    if not args.name or not args.tool:
+        return fail("usage: switchboard annotate NAME TOOL --consumes ... --produces ...")
     server = current["servers"].get(args.name)
     if server is None:
         return fail(f"{args.name} is not configured")
@@ -178,6 +182,42 @@ def annotate(args):
         server.pop("capabilities")
     config.save(current)
     print(f"annotated {args.name}.{args.tool}: consumes={entry.get('consumes', [])} produces={entry.get('produces', [])}")
+    print("run switchboard index to refresh the graph")
+    return 0
+
+
+def infer_annotate(args):
+    current = config.load()
+    if args.server:
+        if args.server not in current["servers"]:
+            return fail(f"{args.server} is not configured")
+        servers = {args.server: current["servers"][args.server]}
+    else:
+        servers = current["servers"]
+    if not servers:
+        return fail("no upstreams; add one with: switchboard add mcp NAME -- COMMAND")
+    try:
+        tools = index.discover(servers)
+    except Exception as exc:
+        return fail(str(exc))
+
+    print(f"inferring capabilities for {len(tools)} tools, one model call...")
+    try:
+        inferred = infer.infer(tools)
+    except ValueError as exc:
+        return fail(str(exc))
+
+    for name in servers:
+        current["servers"][name].pop("inferred", None)
+    for key, entry in inferred.items():
+        server, _, tool = key.partition(".")
+        current["servers"][server].setdefault("inferred", {})[tool] = entry
+    config.save(current)
+
+    producers = {key: entry for key, entry in inferred.items() if entry["produces"]}
+    print(f"inferred capabilities for {len(tools)} tools, {len(producers)} of them produce data:")
+    for key in sorted(producers):
+        print(f"  {key:42} produces={','.join(producers[key]['produces'])}")
     print("run switchboard index to refresh the graph")
     return 0
 
@@ -274,11 +314,13 @@ def build_parser():
     reset_parser.add_argument("--yes", action="store_true")
     reset_parser.set_defaults(handler=reset_command)
 
-    annotate_parser = sub.add_parser("annotate", help="set consumes/produces for an upstream tool")
-    annotate_parser.add_argument("name")
-    annotate_parser.add_argument("tool")
+    annotate_parser = sub.add_parser("annotate", help="set or infer consumes/produces for upstream tools")
+    annotate_parser.add_argument("name", nargs="?")
+    annotate_parser.add_argument("tool", nargs="?")
     annotate_parser.add_argument("--consumes")
     annotate_parser.add_argument("--produces")
+    annotate_parser.add_argument("--infer", action="store_true", help="let a model name produced data types")
+    annotate_parser.add_argument("--server", help="limit --infer to one server")
     annotate_parser.set_defaults(handler=annotate)
 
     plan = sub.add_parser("plan")

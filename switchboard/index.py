@@ -22,13 +22,16 @@ def parse_capabilities(description):
     return split(match.group(1)), split(match.group(2))
 
 
-def capabilities(tool, override=None):
-    """Header wins, then config annotations. MCP has no dependency types."""
+def capabilities(tool, override=None, inferred=None):
+    """Header wins, then manual annotations, then inferred ones. MCP has no
+    dependency types of its own."""
     consumes, produces = parse_capabilities(tool.description)
     if consumes or produces:
         return consumes, produces
-    override = override or {}
-    return override.get("consumes", []), override.get("produces", [])
+    for layer in (override, inferred):
+        if layer and (layer.get("consumes") or layer.get("produces")):
+            return layer.get("consumes", []), layer.get("produces", [])
+    return [], []
 
 
 async def _discover(servers):
@@ -37,8 +40,9 @@ async def _discover(servers):
         if "." in name:
             raise ValueError(f"server name cannot contain a dot: {name}")
         overrides = server.get("capabilities", {})
+        inferred = server.get("inferred", {})
         for tool in await list_tools(server):
-            consumes, produces = capabilities(tool, overrides.get(tool.name))
+            consumes, produces = capabilities(tool, overrides.get(tool.name), inferred.get(tool.name))
             key = f"{name}.{tool.name}"
             tools.append(
                 {

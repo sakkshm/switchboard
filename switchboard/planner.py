@@ -70,6 +70,18 @@ def choose(paths, candidates, uniform=False):
     return max(shortlist, key=lambda item: item[:3])[3]
 
 
+def provided(path, tools, supplied):
+    """True when every external input of the path is already supplied.
+
+    Two sources can share one produced type (e.g. two servers both producing
+    `content`), leaving the route order arbitrary. The caller's inputs break
+    that tie toward the route it can actually run.
+    """
+    chain = [node["properties"]["key"] for node in path["nodes"]]
+    _, required = binder.bind(tools, chain)
+    return set(required) <= set(supplied)
+
+
 def fallback_path(hydra, tools, ranked):
     """No route to the top goal: take the route whose first tool ranks best."""
     ranks = {tool["key"]: index for index, tool in enumerate(ranked)}
@@ -127,7 +139,11 @@ def make(hydra, task, supplied=None, uniform=False):
         raise NoPlan("the graph has only one tool")
 
     paths = fetch_paths(hydra, sources, goal)
-    path = choose(paths, candidates, uniform) if paths else fallback_path(hydra, tools, ranked)
+    if paths:
+        ready = [path for path in paths if provided(path, tools, supplied)]
+        path = choose(ready or paths, candidates, uniform)
+    else:
+        path = fallback_path(hydra, tools, ranked)
     chain = [node["properties"]["key"] for node in path["nodes"]]
     goal = chain[-1]
 

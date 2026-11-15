@@ -81,3 +81,12 @@ def test_equal_weight_prefers_longer_path():
     long = route("repo.locate_file", "repo.read_file", "repo.get_diff", "repo.post_review")
     assert planner.choose([short, long], ["repo.locate_file"]) is long
 
+
+def test_provided_route_needs_its_external_inputs():
+    def route(*keys):
+        return {"nodes": [{"properties": {"key": key}} for key in keys]}
+
+    path = route("echo.echo_a", "echo.echo_b")
+    assert planner.provided(path, TOOLS, {"value": "x"})
+    assert not planner.provided(path, TOOLS, {})
+

@@ -43,7 +43,48 @@ def order_valid(steps, tools, input_types):
     return True
 
 
-def bm25_plan(task, tools):
+def dependency_order(chosen, inputs):
+    """Order tools so each runs after the tools that produce its inputs."""
+    remaining, ordered, produced = list(chosen), [], set(inputs)
+    while remaining:
+        ready = [tool for tool in remaining if set(tool["consumes"]) <= produced]
+        tool = ready[0] if ready else remaining[0]  # cycle: keep discovery order
+        ordered.append(tool)
+        produced |= set(tool["produces"])
+        remaining.remove(tool)
+    return [tool["key"] for tool in ordered]
+
+
+def bm25_plan(task, tools, inputs):
+    """Fair lexical baseline: BM25 picks the goal and the best-ranked producer
+    for each missing input type, then the chain is ordered by data dependency.
+    No graph traversal, no learned weights."""
+    ranked = matcher.rank(task["task"], list(tools.values()))
+    chosen, available = [ranked[0]], set(inputs)
+    for _ in range(len(ranked)):
+        missing = {name for tool in chosen for name in tool["consumes"]} - available
+        if not missing:
+            break
+        picked = next(
+            (
+                tool
+                for tool in ranked
+                if tool["key"] not in {item["key"] for item in chosen}
+                and set(tool["produces"]) & missing
+            ),
+            None,
+        )
+        if picked is None:
+            break
+        chosen.append(picked)
+        available |= set(picked["produces"])
+    chain = dependency_order(chosen, inputs)
+    steps, _ = binder.bind(tools, chain)
+    return {"plan_id": "bm25", "task": task["task"], "steps": steps}
+
+
+def bm25_raw_plan(task, tools):
+    """Relevance-ordered top-4, with no dependency awareness at all."""
     chain = [tool["key"] for tool in matcher.rank(task["task"], list(tools.values()))[:4]]
     steps, _ = binder.bind(tools, chain)
     return {"plan_id": "bm25", "task": task["task"], "steps": steps}
@@ -105,10 +146,12 @@ async def measure(hydra, tasks, tools, uniform, learn):
 
 
 async def measure_bm25(hydra, tasks, tools):
-    return [
-        await observe(hydra, task, tools, bm25_plan(task, tools), learn=False)
-        for task in tasks
-    ]
+    runs = {"bm25": [], "bm25_raw": []}
+    for task in tasks:
+        inputs = set(task["inputs"])
+        runs["bm25"].append(await observe(hydra, task, tools, bm25_plan(task, tools, inputs), learn=False))
+        runs["bm25_raw"].append(await observe(hydra, task, tools, bm25_raw_plan(task, tools), learn=False))
+    return {name: summarize(items) for name, items in runs.items()}
 
 
 async def train_round(hydra, tasks, tools, uniform):
@@ -170,11 +213,13 @@ async def experiment(reps, rounds):
     train = [task for task in tasks if task["split"] == "train"]
     holdout = [task for task in tasks if task["split"] == "holdout"]
 
-    bm25_runs, uniform_runs, train_runs = [], [], []
+    bm25_runs, bm25_raw_runs, uniform_runs, train_runs = [], [], [], []
     curves = []
     for _ in range(reps):
         reset(hydra)
-        bm25_runs.append(summarize(await measure_bm25(hydra, tasks, tools)))
+        measured = await measure_bm25(hydra, tasks, tools)
+        bm25_runs.append(measured["bm25"])
+        bm25_raw_runs.append(measured["bm25_raw"])
         uniform_runs.append(summarize(await measure(hydra, holdout, tools, uniform=True, learn=False)))
         train_runs.append(
             summarize(await measure(hydra, train, tools, uniform=True, learn=False))
@@ -198,6 +243,7 @@ async def experiment(reps, rounds):
         "reps": reps,
         "rounds": rounds,
         "bm25": aggregate(bm25_runs),
+        "bm25_raw": aggregate(bm25_raw_runs),
         "uniform": {
             "holdout": aggregate(uniform_runs),
             "train": aggregate(train_runs),
@@ -220,6 +266,7 @@ def print_table(report):
         )
 
     line("bm25", "all", report["bm25"])
+    line("bm25-raw", "all", report["bm25_raw"])
     line("uniform", "train", report["uniform"]["train"])
     line("uniform", "holdout", report["uniform"]["holdout"])
     for row in report["learned"]:

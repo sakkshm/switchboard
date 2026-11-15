@@ -8,15 +8,21 @@ Target: 3:00 to 3:30. One take, terminal plus the static page. No live editing.
 docker compose ps                       # hydradb and minio healthy
 docker pull ghcr.io/github/github-mcp-server:latest
 export GITHUB_TOKEN=$(gh auth token)
-export SWITCHBOARD_CONFIG=/tmp/opencode/real-demo/config.json
-switchboard status                      # servers=3 tools=46 edges=2
+export SWITCHBOARD_LLM_MODEL=opencode/glm-5.3-flash-free
+export SWITCHBOARD_CONFIG=/tmp/opencode/real-demo/infer-demo.json
+switchboard status                      # servers=3
 ```
 
 - The three real servers are already added (`docs/TESTING.md` has the `add mcp`
   lines). `switchboard reset --yes` then `switchboard index` on camera clears the
   fixture graph and rebuilds the real one.
+- Two configs, same three servers. `/tmp/opencode/real-demo/infer-demo.json` has
+  no annotations (the `--infer` beat). `/tmp/opencode/real-demo/config.json` has
+  the four edges declared by hand (the run beat).
 - Delete `/tmp/opencode/real-demo/example.html` and `README.md` first so the
   writes are visibly new.
+- `switchboard annotate --infer` makes one model call and takes about 40 s; the
+  Loom line before it sets the expectation, and the wait is trimmed in the edit.
 
 - Open `site/index.html` in a browser tab, scrolled to the hero.
 - Open `docs/RESULTS.md` in a second tab.
@@ -40,44 +46,93 @@ find and run. The client never sees the upstream catalog."
 
 Show: the architecture cards on the page, then the graph schema block.
 
-## 0:40 - Index real servers (40 s)
+## 0:40 - Index real servers, infer the edges (55 s)
 
 Say: "Indexing is discovery, not a hand-written catalog. These are three real MCP
 servers: the official filesystem server, the fetch server, and GitHub's own
 server in Docker."
 
 ```bash
-export SWITCHBOARD_CONFIG=/tmp/opencode/real-demo/config.json
-export GITHUB_TOKEN=$(gh auth token)
+export SWITCHBOARD_CONFIG=/tmp/opencode/real-demo/infer-demo.json
 switchboard reset --yes
 switchboard index
 switchboard tools --server fetch
+```
+
+Expected:
+
+```
+indexed 46 tools, 0 FEEDS edges
+fetch.fetch  consumes=[] produces=[]
+```
+
+Say: "Forty-six real tools, zero edges. MCP does not publish dependency types,
+and the schemas are not enough: the fetch server declares no output at all, and
+the filesystem server claims every one of its tools returns content."
+
+```bash
+switchboard annotate --infer
+```
+
+Say: "So I ask a model. It keeps the required inputs as consumes, then reads each
+description and names what the tool actually returns. It works out that fetch
+returns content - the one edge no schema could reveal."
+
+Expected:
+
+```
+inferring capabilities for 46 tools, one model call...
+inferred capabilities for 46 tools, 11 of them produce data:
+  fetch.fetch                    produces=content
+  filesystem.read_file           produces=content
+  github.get_file_contents       produces=content
+  ...
+```
+
+```bash
+switchboard index
+switchboard graph | grep 'fetch.fetch -> filesystem'
+```
+
+Expected:
+
+```
+indexed 46 tools, 23 FEEDS edges
+fetch.fetch -> filesystem.append_file  weight=1.0
+fetch.fetch -> filesystem.write_file  weight=1.0
+```
+
+Say: "The load-bearing edge is back, discovered, not declared. A hand-written
+capability header still wins, then a manual annotate, then this. The graph is
+what makes a plan possible at all."
+
+## 1:20 - Run real tools (45 s)
+
+Say: "The inferred graph is deliberately broad, so a task can route to a loose
+goal. For the run I declare the four edges by hand. Header beats manual beats
+inferred."
+
+```bash
+export SWITCHBOARD_CONFIG=/tmp/opencode/real-demo/config.json
+switchboard reset --yes
+switchboard index
 switchboard graph
 ```
 
 Expected:
 
 ```
-indexed 46 tools, 2 FEEDS edges
-fetch.fetch  consumes=['url'] produces=['content']
+indexed 46 tools, 4 FEEDS edges
+fetch.fetch -> filesystem.append_file  weight=1.0
 fetch.fetch -> filesystem.write_file  weight=1.0
+github.get_file_contents -> filesystem.append_file  weight=1.0
 github.get_file_contents -> filesystem.write_file  weight=1.0
 ```
-
-Say: "MCP does not publish dependency types, so a tool gets an edge only where I
-declare one. One command per tool."
-
-```bash
-switchboard annotate github get_file_contents --consumes owner,repo,path --produces content
-switchboard annotate filesystem write_file --consumes path,content
-```
-
-## 1:20 - Run real tools (35 s)
 
 Say: "Now the real loop. No mock server anywhere."
 
 ```bash
-switchboard plan "fetch a web page and save it to a local file" \
+switchboard plan "fetch a web page and write it to a local file" \
   --input url=https://example.com --input path=/tmp/opencode/real-demo/example.html
 switchboard run <plan_id> --input url=https://example.com --input path=/tmp/opencode/real-demo/example.html
 cat /tmp/opencode/real-demo/example.html
@@ -87,15 +142,15 @@ Say: "The graph returned fetch then write_file. The page was really fetched and
 really written." Repeat the plan and run twice more, then:
 
 ```bash
-switchboard graph
-# fetch.fetch -> filesystem.write_file  weight=1.8
+switchboard graph | grep fetch.fetch
+# fetch.fetch -> filesystem.write_file  weight=1.6
 ```
 
 Say: "Every successful run raises the edge weight in HydraDB. That is the
 continual learning, on real edges."
 
 ```bash
-switchboard plan "download README.md from a GitHub repository and save it to a local file" \
+switchboard plan "download README.md from a GitHub repository and write it to a local file" \
   --input owner=sakkshm --input repo=switchboard --input path=README.md
 switchboard run <plan_id> --input owner=sakkshm --input repo=switchboard --input path=README.md
 wc -c /tmp/opencode/real-demo/README.md      # 8692, live from GitHub

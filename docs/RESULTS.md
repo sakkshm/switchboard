@@ -13,7 +13,8 @@ and OpenCode v2.2.5. Raw data: `evals/results/latest.json` (learning curve) and
 | Tool-schema context, native | 5,453 tokens |
 | Tool-schema context, gateway | 169 tokens |
 | Context reduction | 32.3x |
-| Holdout task success, BM25 baseline | 0.00 |
+| Holdout task success, BM25 baseline (naive top-4) | 0.00 |
+| Holdout task success, BM25 baseline (fair, dependency-ordered) | 0.08 |
 | Holdout task success, uniform graph | 0.33 |
 | Holdout task success, learned graph | 1.00 after one training round |
 | Order validity, every graph plan | 1.00 |
@@ -69,20 +70,22 @@ replicates (spread min = max).
 
 | Mode | Round | Top-1 | Order | Success | Precision | Recall | p95 |
 |---|---|---|---|---|---|---|---|
-| BM25, no graph | - | 0.00 | 0.00 | 0.00 | 0.38 | 0.38 | 12 ms |
-| Uniform graph | 0 | 0.33 | 1.00 | 0.33 | 0.83 | 0.83 | 3,423 ms |
-| Learned graph | 0 | 0.33 | 1.00 | 0.33 | 0.83 | 0.83 | 2,943 ms |
-| Learned graph | 1 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 3,149 ms |
-| Learned graph | 2 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 3,098 ms |
-| Learned graph | 3 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 3,344 ms |
-| Learned graph | 4 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 3,125 ms |
-| Learned graph | 5 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 3,377 ms |
+| BM25, naive top-4 | - | 0.00 | 0.00 | 0.00 | 0.38 | 0.38 | 13 ms |
+| BM25, fair | - | 0.08 | 0.96 | 0.08 | 0.76 | 0.75 | 3,052 ms |
+| Uniform graph | 0 | 0.33 | 1.00 | 0.33 | 0.83 | 0.83 | 3,534 ms |
+| Learned graph | 0 | 0.33 | 1.00 | 0.33 | 0.83 | 0.83 | 3,296 ms |
+| Learned graph | 1 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 3,570 ms |
+| Learned graph | 2 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 3,210 ms |
+| Learned graph | 3 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 2,907 ms |
+| Learned graph | 4 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 3,081 ms |
+| Learned graph | 5 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 3,085 ms |
 
 ```
 top-1 success, holdout
 1.00 |       *     *     *     *     *
 0.33 | *     .     .     .     .     .   <- learned r0, uniform r0-r5
-0.00 | x                                 <- BM25
+0.08 | x                                 <- BM25 fair
+0.00 | x                                 <- BM25 naive
      +-----+-----+-----+-----+-----+-----+
         r0    r1    r2    r3    r4    r5
 ```
@@ -92,11 +95,19 @@ The learned graph is trained on that split and scored on the holdout.
 
 ## Why each mode behaves this way
 
-**BM25 (0.00).** BM25 ranks individual tools by task similarity. It has no notion
-of dependencies, so its top four tools are not a chain. The first step does not
-receive the type it consumes, and the run fails. Order validity is 0.00 because
-the plan is not ordered by data flow at all. This is the baseline the graph must
-beat, not a strawman: it is the retrieval most gateways use today.
+**BM25, naive top-4 (0.00).** BM25 ranks individual tools by task similarity. It
+has no notion of dependencies, so its top four tools are not a chain and are not
+even ordered by data flow (order validity 0.00). The first step does not receive
+the type it consumes, and the run fails. This is the retrieval most gateways use
+today.
+
+**BM25, fair (0.08).** The same lexical retrieval, given every benefit short of a
+graph: it picks the goal with BM25, then for each missing input type picks the
+best-ranked tool that produces it, then orders the chain by data dependency
+(order validity 0.96). BM25 names the correct goal first for all 24 tasks, but
+the producer step is chosen by description similarity rather than by a route, so
+only 0.08 still execute end to end. This is the honest floor; the graph's 1.00 is
+not measured against a strawman.
 
 **Uniform graph (0.33).** Traversal over `FEEDS` produces a topologically valid
 four-step chain every time (order 1.00). With all weights equal, the planner has
@@ -167,27 +178,38 @@ also run against three real MCP servers with no fixture and no mock, on
 
 `switchboard index` produced 46 `:Tool` nodes. MCP publishes no dependency
 types, so an edge exists only where a capability is declared; `switchboard
-annotate` declares three:
+annotate` declares four:
 
 ```bash
 switchboard annotate fetch fetch --consumes url --produces content
 switchboard annotate github get_file_contents --consumes owner,repo,path --produces content
 switchboard annotate filesystem write_file --consumes path,content
+switchboard annotate filesystem append_file --consumes path,content
 ```
 
-That yields 2 `:FEEDS` edges, and both chains execute against the live services:
+That yields 4 `:FEEDS` edges and a real branch: `fetch.fetch` feeds both
+`filesystem.write_file` and `filesystem.append_file`. `switchboard annotate
+--infer` (one model call over the schemas and descriptions) recovers the same
+`fetch` branch with no hand annotation, plus the read/write routes it can
+justify; the hand-declared four-edge diamond is the precise variant used below.
+Three chains execute against the live services:
 
 | Task | Plan | Result |
 |---|---|---|
-| "fetch a web page and save it to a local file" | `fetch.fetch -> filesystem.write_file` | wrote the live `https://example.com` text to `example.html` |
-| "download README.md from a GitHub repository and save it to a local file" | `github.get_file_contents -> filesystem.write_file` | wrote 8,692 bytes from the live GitHub API to `README.md` |
+| "fetch a web page and write it to a local file" | `fetch.fetch -> filesystem.write_file` | wrote the live `https://example.com` text (208 bytes) to `example.html` |
+| "fetch a web page and append it to a local log file" | `fetch.fetch -> filesystem.append_file` | appended the same 208 bytes to `log.txt` |
+| "download README.md from a GitHub repository and write it to a local file" | `github.get_file_contents -> filesystem.write_file` | wrote live bytes from the GitHub API to a local file |
+
+Both `fetch.fetch` and `github.get_file_contents` produce `content`, so the same
+goal is reachable from either source. The planner prefers the route whose
+external inputs the caller supplied (`provided` in `switchboard/planner.py`): a
+`url` selects `fetch`, an `owner`/`repo` selects GitHub. That keeps the branch
+deterministic across re-indexes instead of depending on path order.
 
 The learning loop ran on real edges too: three successful
 `fetch.fetch -> filesystem.write_file` runs raised its weight 1.0 -> 1.2 ->
-1.4 -> 1.6 -> 1.8 (cap 2.0), read back with `switchboard graph`. The GitHub edge
-stayed at 1.0 and the planner still chose it for the GitHub task, because when
-the top-ranked tool has no incoming route the planner takes the reachable goal
-whose first tool ranks best for the task. `docs/TESTING.md` has the transcript.
+1.4 -> 1.6 -> 1.8 (cap 2.0), read back with `switchboard graph`. `docs/TESTING.md`
+has the transcript.
 
 ## Reproduce
 
@@ -227,7 +249,8 @@ opencode run --format json \
   sample.
 - The `consumes` / `produces` convention is ours. MCP publishes no dependency
   types, so a real server gets edges only where `switchboard annotate` declares
-  them (see above). Everything else is indexed but not orderable.
+  them or `switchboard annotate --infer` infers them (see above). Everything else
+  is indexed but not orderable.
 - The binder resolves `$input.X` and `$steps.N.result` only. It does not project
   a field out of a step result, so a chain that needs to pull `owner` out of a
   search result is not expressible yet.

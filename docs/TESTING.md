@@ -264,7 +264,7 @@ switchboard add mcp github --env 'GITHUB_PERSONAL_ACCESS_TOKEN={env:GITHUB_TOKEN
   ghcr.io/github/github-mcp-server
 
 switchboard reset --yes          # clear the fixture graph first
-switchboard index                # 46 tools, 2 FEEDS edges
+switchboard index                # 46 tools, edges only where a capability is declared
 switchboard tools                # every indexed tool and its types
 switchboard graph                # every edge and its learned weight
 ```
@@ -276,27 +276,58 @@ edge where a capability was declared. `annotate` sets them for one upstream tool
 switchboard annotate fetch fetch --consumes url --produces content
 switchboard annotate github get_file_contents --consumes owner,repo,path --produces content
 switchboard annotate filesystem write_file --consumes path,content
+switchboard annotate filesystem append_file --consumes path,content
 ```
 
-The two declared chains then execute against the real services:
+That yields 4 `:FEEDS` edges and a real branch: `fetch.fetch` feeds both
+`write_file` and `append_file`.
+
+`--infer` does the same without hand annotations, in one model call. Layer 1 is
+structural: a tool's required input parameters become `consumes`. Layer 2 asks a
+model which tools return a payload another tool can take, since an output schema
+cannot tell a read from a write - here the filesystem server declares `content`
+for every tool, and the fetch server declares nothing:
 
 ```bash
-switchboard plan "fetch a web page and save it to a local file" \
+switchboard annotate --infer          # one call, all three servers
+switchboard index
+switchboard graph
+```
+
+The inferred graph has the same `fetch` branch plus the read/write and
+search/write routes the model can justify; `fetch.fetch -> filesystem.write_file`
+appears with no hand annotation. A tool whose essential parameter is optional in
+its schema (GitHub's `get_file_contents` needs `path`) still needs one manual
+`annotate` to bind it. The backend is the local `opencode` CLI;
+`SWITCHBOARD_LLM_CMD` replaces the command, `SWITCHBOARD_LLM_MODEL` sets the
+model. Precedence is header, then manual `annotate`, then inferred.
+
+The declared chains execute against the live services:
+
+```bash
+switchboard plan "fetch a web page and write it to a local file" \
   --input url=https://example.com --input path=/tmp/opencode/real-demo/example.html
 switchboard run <plan_id> --input url=https://example.com --input path=/tmp/opencode/real-demo/example.html
-# fetch.fetch -> filesystem.write_file; the file on disk holds the page text
+# fetch.fetch -> filesystem.write_file; 208 bytes on disk
 
-switchboard plan "download README.md from a GitHub repository and save it to a local file" \
+switchboard plan "fetch a web page and append it to a local log file" \
+  --input url=https://example.com --input path=/tmp/opencode/real-demo/log.txt
+switchboard run <plan_id> --input url=https://example.com --input path=/tmp/opencode/real-demo/log.txt
+# fetch.fetch -> filesystem.append_file; 208 bytes appended
+
+switchboard plan "download README.md from a GitHub repository and write it to a local file" \
   --input owner=sakkshm --input repo=switchboard --input path=README.md
 switchboard run <plan_id> --input owner=sakkshm --input repo=switchboard --input path=README.md
-# github.get_file_contents -> filesystem.write_file; 8692 bytes from the live GitHub API
+# github.get_file_contents -> filesystem.write_file
 ```
 
 Each successful run raises its edge weight; `switchboard graph` shows
 `fetch.fetch -> filesystem.write_file  weight=1.8` after three runs (cap 2.0).
-When the top-ranked tool has no incoming route, the planner falls back to the
-reachable goal whose first tool ranks best for the task, so a heavy `fetch` edge
-does not hijack a GitHub task.
+Both `fetch.fetch` and `github.get_file_contents` produce `content`, so the same
+goal is reachable from either. The planner breaks that tie toward the route whose
+inputs the caller supplied - a `url` selects `fetch`, an `owner`/`repo` selects
+GitHub - so a heavy `fetch` edge does not hijack a GitHub task and a GitHub task
+does not need a `url`.
 
 The GitHub server returns file reads as `{"content": [text, resource]}`; the
 executor unwraps the resource text so a downstream `write_file` gets a string.
@@ -310,7 +341,9 @@ four needed tools are named in the plan.
 
 The judging criteria also demand a learning curve and a baseline:
 
-- Baseline: BM25 rank order, no graph.
+- Baseline: two BM25 runs, no graph - naive top-4 relevance, and a fair one that
+  selects the goal, picks the best-ranked producer per missing type, and orders
+  by dependency. The fair baseline is the honest floor.
 - Static graph: `MSpaths` with uniform edge weights.
 - Learning graph: after each task, `FEEDS.weight` goes up on success and down
   on failure; the planner scores paths by candidate coverage plus weight.
@@ -362,7 +395,8 @@ LLM baseline. Never cut: removal test, eval numbers, BM25 baseline, honest
 - Config headers must store `{env:NAME}`, not the secret. The CLI must not echo
   the resolved value.
 - The fixture capability header is a convention, not MCP. Real servers need
-  `switchboard annotate` for consumes/produces, or they have no edges.
+  `switchboard annotate` or `switchboard annotate --infer` for consumes/produces,
+  or they have no edges.
 - OpenCode with default Code Mode groups MCP tools; set `codemode: false` for
   both sides of the A/B. In v2.2.5 this surfaced the gateway's 2 tools but not
   the fixture servers' tools, so the live 60-tool baseline is blocked.

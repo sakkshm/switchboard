@@ -28,11 +28,12 @@ docker compose up -d --wait
 ```bash
 .venv/bin/ruff check .
 .venv/bin/pytest -q
-# 9 passed
+# 14 passed
 ```
 
 Covers the removal test (`NoPlan` on an empty graph), the binder, the capability
-annotation path, and the executor's Go file-read unwrap.
+annotation path, the structural/inferred capability layers, and the executor's Go
+file-read unwrap.
 
 ## 3. CLI config surface
 
@@ -141,9 +142,9 @@ three `find` + `run` round-trips return `ok: true`.
 ```
 
 `run.py` rewrites `evals/results/latest.json` (git-ignored unless it is the
-committed file): BM25 0.00, uniform graph 0.33, learned graph 1.00 from round 1,
-stable to round 5, zero spread across 3 replicates. `baseline_tokens.py` prints
-the 32.3x schema-token reduction.
+committed file): BM25 fair 0.08 and BM25 naive 0.00, uniform graph 0.33, learned
+graph 1.00 from round 1, stable to round 5, zero spread across 3 replicates.
+`baseline_tokens.py` prints the 32.3x schema-token reduction.
 
 ```bash
 .venv/bin/switchboard reset --yes
@@ -166,40 +167,65 @@ docker pull ghcr.io/github/github-mcp-server:latest
   ghcr.io/github/github-mcp-server
 
 .venv/bin/switchboard reset --yes
-.venv/bin/switchboard annotate fetch fetch --consumes url --produces content
-.venv/bin/switchboard annotate github get_file_contents --consumes owner,repo,path --produces content
-.venv/bin/switchboard annotate filesystem write_file --consumes path,content
+.venv/bin/switchboard annotate --infer     # or declare the edges by hand
 .venv/bin/switchboard index
 .venv/bin/switchboard graph
 ```
 
-Expect 46 tools and 2 edges:
-`fetch.fetch -> filesystem.write_file`, `github.get_file_contents ->
-filesystem.write_file`, both `weight=1.0`.
+`annotate --infer` asks a model which tools return a payload another tool can
+take; layer 1 already takes required inputs as `consumes`. It finds the `fetch`
+branch even though the fetch server declares no output schema, and adds the
+read/write and search/write routes it can justify (a couple of dozen edges). A
+tool whose essential parameter is optional in its schema (GitHub's
+`get_file_contents` needs `path`) still needs one manual `annotate` to bind it.
+To declare a precise four-edge diamond by hand instead:
 
 ```bash
-rm -f /tmp/opencode/real-demo/example.html /tmp/opencode/real-demo/README.md
+.venv/bin/switchboard annotate fetch fetch --consumes url --produces content
+.venv/bin/switchboard annotate github get_file_contents --consumes owner,repo,path --produces content
+.venv/bin/switchboard annotate filesystem write_file --consumes path,content
+.venv/bin/switchboard annotate filesystem append_file --consumes path,content
+.venv/bin/switchboard index
+.venv/bin/switchboard graph
+```
 
-out=$(.venv/bin/switchboard plan "fetch a web page and save it to a local file" \
+That gives 46 tools and 4 edges: `fetch.fetch` feeds both `filesystem.write_file`
+and `filesystem.append_file`, and `github.get_file_contents` feeds both, all
+`weight=1.0`. Both paths keep the load-bearing `fetch.fetch -> write_file` edge.
+
+```bash
+rm -f /tmp/opencode/real-demo/example.html /tmp/opencode/real-demo/log.txt
+
+out=$(.venv/bin/switchboard plan "fetch a web page and write it to a local file" \
   --input url=https://example.com --input path=/tmp/opencode/real-demo/example.html)
 .venv/bin/switchboard run "$(echo "$out" | awk 'NR==1{print $2}')" \
   --input url=https://example.com --input path=/tmp/opencode/real-demo/example.html
-cat /tmp/opencode/real-demo/example.html
+wc -c /tmp/opencode/real-demo/example.html      # 208, live from example.com
 
-out=$(.venv/bin/switchboard plan "download README.md from a GitHub repository and save it to a local file" \
+out=$(.venv/bin/switchboard plan "fetch a web page and append it to a local log file" \
+  --input url=https://example.com --input path=/tmp/opencode/real-demo/log.txt)
+.venv/bin/switchboard run "$(echo "$out" | awk 'NR==1{print $2}')" \
+  --input url=https://example.com --input path=/tmp/opencode/real-demo/log.txt
+wc -c /tmp/opencode/real-demo/log.txt           # 208, appended
+
+out=$(.venv/bin/switchboard plan "download README.md from a GitHub repository and write it to a local file" \
   --input owner=sakkshm --input repo=switchboard --input path=README.md)
 .venv/bin/switchboard run "$(echo "$out" | awk 'NR==1{print $2}')" \
   --input owner=sakkshm --input repo=switchboard --input path=README.md
-wc -c /tmp/opencode/real-demo/README.md      # 8692, live from the GitHub API
+# github.get_file_contents -> filesystem.write_file, live from the GitHub API
 
 .venv/bin/switchboard graph
-# fetch.fetch -> filesystem.write_file  weight=1.2  (climbs to 1.8 over 3 runs)
+# the used edge weight climbs 1.2 -> 1.8 over three runs
 ```
+
+Both sources produce `content`, so the same goal is reachable from `fetch` and
+from `github`. The planner prefers the route whose inputs you supplied: a `url`
+selects `fetch`, an `owner`/`repo` selects GitHub.
 
 The same MCP check works on the real graph:
 
 ```bash
-.venv/bin/python evals/mcp_check.py "fetch a web page and save it to a local file" \
+.venv/bin/python evals/mcp_check.py "fetch a web page and write it to a local file" \
   --input url=https://example.com --input path=/tmp/opencode/real-demo/e2e.html
 ```
 
@@ -234,7 +260,7 @@ Remove `opencode.json` when done (it is git-ignored).
 | Feature | Check | Step |
 |---|---|---|
 | Graph store up | `status` shows `ready=True` | 1 |
-| Unit tests, lint | `ruff` clean, `pytest` 9 passed | 2 |
+| Unit tests, lint | `ruff` clean, `pytest` 14 passed | 2 |
 | `add` / `list` / `remove`, both transports | tool counts printed | 3 |
 | `index`, idempotent | `60 tools, 69 edges` twice | 4 |
 | `tools`, `graph` | counts and weights listed | 4 |
@@ -246,10 +272,11 @@ Remove `opencode.json` when done (it is git-ignored).
 | MCP surface, stdio | exactly `find`, `run` | 7 |
 | MCP surface, HTTP, concurrent | two clients both `ok` | 7 |
 | Removal test | `NoPlan` on empty graph | 8 |
-| Learning curve, baseline | BM25 0.00 / uniform 0.33 / learned 1.00 | 8 |
+| Learning curve, baseline | BM25 fair 0.08 / naive 0.00 / uniform 0.33 / learned 1.00 | 8 |
 | Token reduction | 32.3x | 8 |
 | `annotate` | real tools get edges | 9 |
-| Real servers, no mocks | live page and live GitHub file written | 9 |
+| `annotate --infer` | model names produced types, `fetch` branch appears | 9 |
+| Real branch, no mocks | `fetch` feeds `write_file` and `append_file`; live page, log, and GitHub file written | 9 |
 | Client TUI | 2 tools, plan, run | 10 |
 
 Full logs and the OpenCode 60-tool baseline caveat are in `docs/TESTING.md` and
